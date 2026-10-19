@@ -1,0 +1,10 @@
+# Windows: скрипты должны быть с LF, иначе bash их не запустит (^M в конце строк).
+* text=auto
+*.sh text eol=lf
+Makefile text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.png binary
+*.jpg binary
+*.sql text eol=lf
