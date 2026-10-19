@@ -1,0 +1,46 @@
+[project]
+name = "leaderhelp-backend"
+version = "0.0.0"
+description = "Договорились: backend API"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "sqlalchemy>=2",
+    "psycopg[binary]>=3",
+    "alembic",
+    "pydantic-settings",
+    "celery[redis]",
+    "pyyaml",
+    "pwdlib[argon2]>=0.3.1",
+    "pyjwt>=2.15.1",
+    "python-multipart>=0.0.32",
+    "httpx>=0.28.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "factory-boy",
+    "freezegun",
+    "schemathesis",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["fr(id): functional requirement covered by the test"]
