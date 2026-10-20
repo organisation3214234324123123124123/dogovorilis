@@ -1,0 +1,23 @@
+name: dogovor
+
+# База и брокер для разработки: docker compose up -d db redis
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-leaderhelp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-leaderhelp}
+      POSTGRES_DB: ${POSTGRES_DB:-leaderhelp}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+
+volumes:
+  pgdata:
