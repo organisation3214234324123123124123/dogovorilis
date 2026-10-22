@@ -4,6 +4,7 @@ name: dogovor
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-leaderhelp}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-leaderhelp}
@@ -17,6 +18,7 @@ services:
       retries: 20
 
   redis:
+    restart: unless-stopped
     image: redis:7-alpine
 
 volumes:
