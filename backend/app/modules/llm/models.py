@@ -12,6 +12,7 @@ class LlmTask(StrEnum):
     PARSE = "parse"
     GAPS = "gaps"
     QUESTION = "question"
+    AGENDA = "agenda"
 
 
 class LlmOutcome(StrEnum):
