@@ -90,11 +90,15 @@ class Person(Base):
     created_at: Mapped[datetime] = created_at_column()
 
 
+OVERLOAD_THRESHOLD_DEFAULT = 5  # BR-9: used while series.overload_threshold is NULL
+
+
 class Series(Base):
     __tablename__ = "series"
     __table_args__ = (
         Index("ix_series_owner_user_id_status", "owner_user_id", "status"),
         CheckConstraint("planned_duration_min BETWEEN 15 AND 240", name="planned_duration_min"),
+        CheckConstraint("overload_threshold >= 1", name="overload_threshold"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -112,6 +116,7 @@ class Series(Base):
         default=SeriesStatus.ACTIVE,
         server_default=SeriesStatus.ACTIVE.value,
     )
+    overload_threshold: Mapped[int | None]
     created_at: Mapped[datetime] = created_at_column()
 
 

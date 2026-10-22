@@ -18,6 +18,7 @@ class NotificationType(StrEnum):
     DUE_TOMORROW = "DUE_TOMORROW"
     ITEM_CHANGED = "ITEM_CHANGED"
     ITEM_REASSIGNED = "ITEM_REASSIGNED"
+    PASSWORD_RESET = "PASSWORD_RESET"
 
 
 class NotificationStatus(StrEnum):
