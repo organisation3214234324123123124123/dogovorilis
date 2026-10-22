@@ -97,6 +97,7 @@ class Series(Base):
     __tablename__ = "series"
     __table_args__ = (
         Index("ix_series_owner_user_id_status", "owner_user_id", "status"),
+        Index("ix_series_archived_at", "archived_at"),
         CheckConstraint("planned_duration_min BETWEEN 15 AND 240", name="planned_duration_min"),
         CheckConstraint("overload_threshold >= 1", name="overload_threshold"),
     )
@@ -117,6 +118,7 @@ class Series(Base):
         server_default=SeriesStatus.ACTIVE.value,
     )
     overload_threshold: Mapped[int | None]
+    archived_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = created_at_column()
 
 
