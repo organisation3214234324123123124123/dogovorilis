@@ -90,7 +90,7 @@ class Person(Base):
     created_at: Mapped[datetime] = created_at_column()
 
 
-OVERLOAD_THRESHOLD_DEFAULT = 5  # BR-9: used while series.overload_threshold is NULL
+LOAD_WARNING_THRESHOLD_DEFAULT = 5  # пока series.load_warning_threshold пуст (BR-9)
 
 
 class Series(Base):
@@ -99,7 +99,7 @@ class Series(Base):
         Index("ix_series_owner_user_id_status", "owner_user_id", "status"),
         Index("ix_series_archived_at", "archived_at"),
         CheckConstraint("planned_duration_min BETWEEN 15 AND 240", name="planned_duration_min"),
-        CheckConstraint("overload_threshold >= 1", name="overload_threshold"),
+        CheckConstraint("load_warning_threshold >= 1", name="load_warning_threshold"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -117,7 +117,7 @@ class Series(Base):
         default=SeriesStatus.ACTIVE,
         server_default=SeriesStatus.ACTIVE.value,
     )
-    overload_threshold: Mapped[int | None]
+    load_warning_threshold: Mapped[int | None]
     archived_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = created_at_column()
 
