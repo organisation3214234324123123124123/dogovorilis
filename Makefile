@@ -20,6 +20,14 @@ down:
 logs:
 	$(COMPOSE) logs -f --tail=100
 
+.PHONY: ps restart
+ps:
+	$(COMPOSE) ps -a
+
+# make restart s=worker - перезапустить один сервис, без s - все
+restart:
+	$(COMPOSE) restart $(s)
+
 install:
 	cd backend && $(TO) 300 uv sync
 
