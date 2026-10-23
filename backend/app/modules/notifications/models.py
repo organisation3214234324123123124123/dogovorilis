@@ -23,6 +23,7 @@ class NotificationType(StrEnum):
 
 class NotificationStatus(StrEnum):
     QUEUED = "queued"
+    SENDING = "sending"
     SENT = "sent"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -65,4 +66,6 @@ class Notification(Base):
     attempts: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
     last_error: Mapped[str | None] = mapped_column(Text)
     sent_at: Mapped[datetime | None]
+    claimed_at: Mapped[datetime | None]
+    postponed: Mapped[bool] = mapped_column(default=False, server_default="false")
     created_at: Mapped[datetime] = created_at_column()
