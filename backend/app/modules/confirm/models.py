@@ -34,3 +34,17 @@ class AccessLink(Base):
     expires_at: Mapped[datetime]
     revoked_at: Mapped[datetime | None]
     last_used_at: Mapped[datetime | None]
+
+
+class AccessLinkToken(Base):
+    """Токен одного письма. Хранится только SHA-256; действует, пока жива ссылка."""
+
+    __tablename__ = "access_link_tokens"
+    __table_args__ = (CheckConstraint("octet_length(token_hash) = 32", name="token_hash_len"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    link_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("access_links.id", ondelete="CASCADE"), index=True
+    )
+    token_hash: Mapped[bytes] = mapped_column(LargeBinary(32), unique=True)
+    created_at: Mapped[datetime] = created_at_column()

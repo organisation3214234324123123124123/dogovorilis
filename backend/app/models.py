@@ -3,7 +3,7 @@
 from app.core.db import Base
 from app.modules.analytics.models import AnalyticsEvent
 from app.modules.auth.models import LoginAttempt, PasswordResetToken, User
-from app.modules.confirm.models import AccessLink
+from app.modules.confirm.models import AccessLink, AccessLinkToken
 from app.modules.gaps.models import Gap
 from app.modules.items.models import Item, ItemComment, ItemEvent
 from app.modules.llm.models import LlmCall, LlmPrompt
@@ -20,6 +20,7 @@ from app.modules.series.models import (
 
 __all__ = [
     "AccessLink",
+    "AccessLinkToken",
     "AgendaItem",
     "AnalyticsEvent",
     "Base",
