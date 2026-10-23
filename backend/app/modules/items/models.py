@@ -122,6 +122,7 @@ class ItemEvent(Base):
     """Журнал пункта, только INSERT (BR-19): в data только id, статусы и даты."""
 
     __tablename__ = "item_events"
+    __table_args__ = (Index("ix_item_events_created_at", "created_at"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     item_id: Mapped[uuid.UUID] = mapped_column(
