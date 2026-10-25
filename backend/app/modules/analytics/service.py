@@ -94,3 +94,7 @@ def track(
 
 def was_tracked_since(db: Session, name: str, item_id: uuid.UUID, since: datetime) -> bool:
     return repository.exists_since(db, name, item_id, since)
+
+
+def purge_old_events(db: Session, cutoff: datetime, limit: int) -> int:
+    return repository.delete_before(db, cutoff, limit)
