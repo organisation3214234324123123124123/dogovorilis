@@ -11,6 +11,7 @@ from app.modules.health.router import router as health_router
 from app.modules.items.router import router as items_router
 from app.modules.live.router import router as live_router
 from app.modules.live.schemas import LiveEvent
+from app.modules.llm.router import router as llm_router
 from app.modules.series.router import router as series_router
 
 
@@ -59,6 +60,7 @@ def create_app() -> FastAPI:
         series_router,
         items_router,
         confirm_router,
+        llm_router,
     ):
         api.include_router(router)
     app.include_router(api)
