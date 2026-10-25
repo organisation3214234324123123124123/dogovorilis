@@ -4,7 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import RequestLogMiddleware, setup_logging
+from app.core.security import register_openapi_security
+from app.modules.auth.router import router as auth_router
 from app.modules.health.router import router as health_router
+from app.modules.items.router import router as items_router
+from app.modules.series.router import router as series_router
 
 
 def create_app() -> FastAPI:
@@ -28,9 +32,15 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(RequestLogMiddleware)
     register_error_handlers(app)
+    register_openapi_security(app)
 
     api = APIRouter(prefix="/api/v1")
-    for router in (health_router,):
+    for router in (
+        health_router,
+        auth_router,
+        series_router,
+        items_router,
+    ):
         api.include_router(router)
     app.include_router(api)
     return app
