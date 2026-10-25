@@ -8,7 +8,23 @@ from app.core.security import register_openapi_security
 from app.modules.auth.router import router as auth_router
 from app.modules.health.router import router as health_router
 from app.modules.items.router import router as items_router
+from app.modules.live.router import router as live_router
+from app.modules.live.schemas import LiveEvent
 from app.modules.series.router import router as series_router
+
+
+def add_ws_schemas(app: FastAPI) -> None:
+    """Добавляет в OpenAPI схему сообщений WebSocket, чтобы у фронтенда были типы."""
+    build = app.openapi
+
+    def openapi() -> dict:
+        schema = build()
+        schema.setdefault("components", {}).setdefault("schemas", {})["LiveEvent"] = (
+            LiveEvent.model_json_schema(ref_template="#/components/schemas/{model}")
+        )
+        return schema
+
+    app.openapi = openapi
 
 
 def create_app() -> FastAPI:
@@ -33,6 +49,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestLogMiddleware)
     register_error_handlers(app)
     register_openapi_security(app)
+    add_ws_schemas(app)
 
     api = APIRouter(prefix="/api/v1")
     for router in (
@@ -43,6 +60,7 @@ def create_app() -> FastAPI:
     ):
         api.include_router(router)
     app.include_router(api)
+    app.include_router(live_router)
     return app
 
 
