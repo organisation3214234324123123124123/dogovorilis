@@ -1,14 +1,20 @@
+import csv
+import io
+import json
 import logging
 import re
 import uuid
-from datetime import datetime
+from collections.abc import Iterator
+from datetime import UTC, datetime, time, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.modules.analytics import repository
 from app.modules.analytics.models import AnalyticsEvent
+from app.modules.analytics.schemas import EventsExportQuery
 
+CSV_COLUMNS = ["name", "created_at", "user_id", "series_id", "meeting_id", "item_id", "props"]
 EVENT_NAMES = frozenset(
     {
         "series_created",
@@ -94,6 +100,37 @@ def track(
 
 def was_tracked_since(db: Session, name: str, item_id: uuid.UUID, since: datetime) -> bool:
     return repository.exists_since(db, name, item_id, since)
+
+
+def export_events_csv(db: Session, query: EventsExportQuery) -> Iterator[str]:
+    start = datetime.combine(query.date_from, time.min, tzinfo=UTC) if query.date_from else None
+    end = (
+        datetime.combine(query.date_to + timedelta(days=1), time.min, tzinfo=UTC)
+        if query.date_to
+        else None
+    )
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+
+    def flush() -> str:
+        text = buffer.getvalue()
+        buffer.seek(0)
+        buffer.truncate()
+        return text
+
+    writer.writerow(CSV_COLUMNS)
+    yield flush()
+    for event in repository.stream_between(db, start, end):
+        ids = (event.user_id, event.series_id, event.meeting_id, event.item_id)
+        writer.writerow(
+            [
+                event.name,
+                event.created_at.astimezone(UTC).isoformat(),
+                *(str(v) if v else "" for v in ids),
+                json.dumps(event.props, ensure_ascii=False, separators=(",", ":")),
+            ]
+        )
+        yield flush()
 
 
 def purge_old_events(db: Session, cutoff: datetime, limit: int) -> int:

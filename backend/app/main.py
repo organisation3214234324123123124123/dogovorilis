@@ -5,6 +5,7 @@ from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import RequestLogMiddleware, setup_logging
 from app.core.security import register_openapi_security
+from app.modules.analytics.router import router as analytics_router
 from app.modules.auth.router import router as auth_router
 from app.modules.confirm.router import router as confirm_router
 from app.modules.health.router import router as health_router
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
         series_router,
         items_router,
         confirm_router,
+        analytics_router,
         llm_router,
     ):
         api.include_router(router)
