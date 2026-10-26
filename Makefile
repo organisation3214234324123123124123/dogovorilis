@@ -6,7 +6,7 @@ COV_MIN ?= 90
 SET ?=
 DEMO_SET := $(if $(SET),--set $(SET),)
 
-.PHONY: env up down logs install lint fmt test test-db
+.PHONY: env up down logs install lint fmt test openapi migrations-check migration check test-db
 
 env:
 	@test -f .env || { cp .env.example .env; echo ".env создан из .env.example"; }
@@ -40,6 +40,21 @@ fmt:
 test:
 	cd backend && DATABASE_URL=$${DATABASE_URL:-$(TEST_DATABASE_URL)} CELERY_EAGER=1 $(TO) 900 \
 		uv run pytest --cov=app --cov-report=term --cov-fail-under=$(COV_MIN)
+
+openapi:
+	cd backend && $(TO) 120 uv run python scripts/export_openapi.py
+
+migrations-check:
+	@cd backend && n=$$($(TO) 120 uv run alembic heads | grep -c '(head)'); \
+	if [ "$$n" != "1" ]; then echo "alembic heads = $$n, ожидалась 1"; exit 1; fi; echo "alembic: 1 head"
+
+migration:
+	@test -n "$(m)" || { echo 'usage: make migration m="message"'; exit 1; }
+	cd backend && uv run alembic revision --autogenerate -m "$(m)"
+
+check: lint test migrations-check
+	$(MAKE) --no-print-directory openapi
+	git diff --exit-code -- docs/api/openapi.yaml
 
 test-db:
 	$(TO) 240 ./scripts/test-db.sh
