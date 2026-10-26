@@ -1,0 +1,4769 @@
+components:
+  schemas:
+    AcceptInMeetingRequest:
+      properties:
+        value:
+          description: true - поставить «Согласовано на встрече», false - снять (OQ-10)
+          examples:
+          - true
+          title: Value
+          type: boolean
+      required:
+      - value
+      title: AcceptInMeetingRequest
+      type: object
+    ActorType:
+      enum:
+      - host
+      - assignee
+      - system
+      - tracker
+      title: ActorType
+      type: string
+    AgendaItemCreate:
+      properties:
+        title:
+          examples:
+          - Статус интеграции с банком
+          maxLength: 300
+          minLength: 1
+          title: Title
+          type: string
+      required:
+      - title
+      title: AgendaItemCreate
+      type: object
+    AgendaItemRead:
+      properties:
+        id:
+          format: uuid
+          title: Id
+          type: string
+        position:
+          examples:
+          - 1
+          title: Position
+          type: integer
+        status:
+          $ref: '#/components/schemas/AgendaItemStatus'
+        title:
+          examples:
+          - Статус интеграции с банком
+          title: Title
+          type: string
+        uncovered:
+          default: false
+          description: 'В режиме закрытия: тема открыта и ни одно решение к ней не
+            привязано (FR-27)'
+          title: Uncovered
+          type: boolean
+      required:
+      - id
+      - position
+      - title
+      - status
+      title: AgendaItemRead
+      type: object
+    AgendaItemStatus:
+      enum:
+      - open
+      - covered
+      - moved
+      title: AgendaItemStatus
+      type: string
+    AgendaItemUpdate:
+      additionalProperties: false
+      properties:
+        position:
+          anyOf:
+          - maximum: 20.0
+            minimum: 1.0
+            type: integer
+          - type: 'null'
+          title: Position
+        status:
+          anyOf:
+          - $ref: '#/components/schemas/AgendaItemStatus'
+          - type: 'null'
+        title:
+          anyOf:
+          - maxLength: 300
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Title
+      title: AgendaItemUpdate
+      type: object
+    AnonymizeResult:
+      properties:
+        anonymized_at:
+          format: date-time
+          title: Anonymized At
+          type: string
+        comments_cleared:
+          examples:
+          - 1
+          title: Comments Cleared
+          type: integer
+        full_name:
+          description: Новое имя
+          examples:
+          - Участник 7
+          title: Full Name
+          type: string
+        links_revoked:
+          examples:
+          - 2
+          title: Links Revoked
+          type: integer
+        person_id:
+          format: uuid
+          title: Person Id
+          type: string
+      required:
+      - person_id
+      - full_name
+      - anonymized_at
+      - links_revoked
+      - comments_cleared
+      title: AnonymizeResult
+      type: object
+    AssigneeResponse:
+      properties:
+        at:
+          format: date-time
+          title: At
+          type: string
+        due_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          description: Новый срок для reschedule
+          title: Due Date
+        kind:
+          $ref: '#/components/schemas/CommentKind'
+          description: reschedule - новый срок, not_mine - «Это не моё»
+        text:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Комментарий исполнителя
+          examples:
+          - Демо проводит Анна
+          title: Text
+      required:
+      - kind
+      - at
+      title: AssigneeResponse
+      type: object
+    Body_login_form_api_v1_auth_token_post:
+      properties:
+        client_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Id
+        client_secret:
+          anyOf:
+          - type: string
+          - type: 'null'
+          format: password
+          title: Client Secret
+        grant_type:
+          anyOf:
+          - pattern: ^password$
+            type: string
+          - type: 'null'
+          title: Grant Type
+        password:
+          format: password
+          title: Password
+          type: string
+        scope:
+          default: ''
+          title: Scope
+          type: string
+        username:
+          title: Username
+          type: string
+      required:
+      - username
+      - password
+      title: Body_login_form_api_v1_auth_token_post
+      type: object
+    CancelAction:
+      properties:
+        action:
+          const: cancel
+          title: Action
+          type: string
+      required:
+      - action
+      title: CancelAction
+      type: object
+    CaptureMode:
+      enum:
+      - manual
+      - audio
+      title: CaptureMode
+      type: string
+    ClosureTrigger:
+      enum:
+      - button
+      - timer
+      title: ClosureTrigger
+      type: string
+    CommentKind:
+      enum:
+      - not_mine
+      - reschedule
+      title: CommentKind
+      type: string
+    DeclineRequest:
+      properties:
+        comment:
+          anyOf:
+          - maxLength: 500
+            type: string
+          - type: 'null'
+          description: Необязательно
+          examples:
+          - Демо проводит Анна
+          title: Comment
+      title: DeclineRequest
+      type: object
+    DoneAction:
+      properties:
+        action:
+          const: done
+          title: Action
+          type: string
+      required:
+      - action
+      title: DoneAction
+      type: object
+    DoneBy:
+      enum:
+      - assignee
+      - host
+      - tracker
+      title: DoneBy
+      type: string
+    EmailQueueHealth:
+      properties:
+        failed_24h:
+          examples:
+          - 0
+          title: Failed 24H
+          type: integer
+        oldest_queued_age_s:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Возраст старейшего письма, секунд
+          title: Oldest Queued Age S
+        queued:
+          examples:
+          - 0
+          title: Queued
+          type: integer
+      required:
+      - queued
+      - failed_24h
+      title: EmailQueueHealth
+      type: object
+    GapRead:
+      description: Пробел пункта (FR-20, FR-21). В пункте приходят только открытые.
+      properties:
+        blocking:
+          default: false
+          description: Блокирует «Согласовано на встрече» (BR-3)
+          title: Blocking
+          type: boolean
+        detected_at:
+          format: date-time
+          title: Detected At
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        question:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Готовый вопрос ведущему, до 120 символов
+          examples:
+          - Иван, к какому сроку?
+          title: Question
+        source:
+          $ref: '#/components/schemas/GapSource'
+          description: rule - правило, llm - нейросеть
+        type:
+          $ref: '#/components/schemas/GapType'
+          examples:
+          - no_due
+      required:
+      - id
+      - type
+      - source
+      - detected_at
+      title: GapRead
+      type: object
+    GapSource:
+      enum:
+      - rule
+      - llm
+      title: GapSource
+      type: string
+    GapType:
+      enum:
+      - no_assignee
+      - no_due
+      - due_vague
+      - due_past
+      - vague_action
+      title: GapType
+      type: string
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          title: Detail
+          type: array
+      title: HTTPValidationError
+      type: object
+    Health:
+      description: Состояние сервиса; при недоступной БД ручка отвечает 503 (NFR-11).
+      properties:
+        db:
+          enum:
+          - ok
+          - down
+          title: Db
+          type: string
+        email_queue:
+          $ref: '#/components/schemas/EmailQueueHealth'
+        llm:
+          $ref: '#/components/schemas/LlmHealth'
+        status:
+          enum:
+          - ok
+          - degraded
+          - down
+          title: Status
+          type: string
+        version:
+          description: 'Версия бэка: фронт сверяет её со своей'
+          examples:
+          - dev
+          title: Version
+          type: string
+        worker_last_run_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          description: Когда воркер последний раз отправил письмо; null - ещё не отправлял
+          title: Worker Last Run At
+      required:
+      - status
+      - version
+      - db
+      - email_queue
+      - llm
+      title: Health
+      type: object
+    ItemAction:
+      enum:
+      - created
+      - updated
+      - accepted_in_meeting
+      - sent
+      - accepted
+      - rescheduled
+      - disputed
+      - reassigned
+      - done
+      - cancelled
+      - reopened
+      title: ItemAction
+      type: string
+    ItemCard:
+      description: Карточка пункта для ведущего.
+      properties:
+        accept_blocked_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Почему нельзя; null, если можно
+          title: Accept Blocked Reason
+        accepted_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Accepted At
+        accepted_in_meeting:
+          description: Отмечено «Согласовано на встрече»
+          title: Accepted In Meeting
+          type: boolean
+        agenda_item_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Agenda Item Id
+        assignee:
+          anyOf:
+          - $ref: '#/components/schemas/PersonBrief'
+          - type: 'null'
+          description: Исполнитель; null - не назначен
+        can_accept_in_meeting:
+          description: Можно ли отметить «Согласовано» (BR-3)
+          title: Can Accept In Meeting
+          type: boolean
+        cancelled_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Cancelled At
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        done_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Done At
+        done_by:
+          anyOf:
+          - $ref: '#/components/schemas/DoneBy'
+          - type: 'null'
+        done_criteria:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Критерий «готово»
+          examples:
+          - Файл выгрузки в общей папке
+          title: Done Criteria
+        due_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          description: Срок в поясе серии
+          examples:
+          - '2026-10-16'
+          title: Due Date
+        due_text:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Срок словами из строки
+          examples:
+          - к пятнице
+          title: Due Text
+        gaps:
+          description: Открытые пробелы
+          items:
+            $ref: '#/components/schemas/GapRead'
+          title: Gaps
+          type: array
+        id:
+          format: uuid
+          title: Id
+          type: string
+        is_overdue:
+          description: Срок прошёл, а пункт в pending или accepted
+          title: Is Overdue
+          type: boolean
+        last_response:
+          anyOf:
+          - $ref: '#/components/schemas/AssigneeResponse'
+          - type: 'null'
+          description: 'Последний ответ исполнителя: новый срок или «не моё» с комментарием'
+        manual_fields:
+          description: Поля, правленные ведущим руками; LLM их не трогает (BR-15)
+          examples:
+          - - what
+          items:
+            type: string
+          title: Manual Fields
+          type: array
+        meeting_id:
+          format: uuid
+          title: Meeting Id
+          type: string
+        meeting_planned_start:
+          format: date-time
+          title: Meeting Planned Start
+          type: string
+        overload_warning:
+          anyOf:
+          - $ref: '#/components/schemas/OverloadWarning'
+          - type: 'null'
+          description: Только в ответе на создание и правку пункта
+        raw_text:
+          description: Исходная строка ведущего
+          examples:
+          - Иван разберётся с выгрузкой к пятнице
+          title: Raw Text
+          type: string
+        reschedule_count:
+          description: Сколько раз меняли срок после рассылки
+          title: Reschedule Count
+          type: integer
+        sent_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Sent At
+        series_id:
+          format: uuid
+          title: Series Id
+          type: string
+        series_title:
+          examples:
+          - Еженедельная планёрка по запуску оплаты
+          title: Series Title
+          type: string
+        source:
+          $ref: '#/components/schemas/ItemSource'
+        status:
+          $ref: '#/components/schemas/ItemStatus'
+        suggested:
+          description: Предложен автоматически
+          title: Suggested
+          type: boolean
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+        version:
+          description: Версия для If-Match
+          examples:
+          - 1
+          title: Version
+          type: integer
+        what:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Что сделать
+          examples:
+          - Разобраться с выгрузкой
+          title: What
+      required:
+      - id
+      - meeting_id
+      - series_id
+      - raw_text
+      - manual_fields
+      - source
+      - suggested
+      - status
+      - is_overdue
+      - accepted_in_meeting
+      - can_accept_in_meeting
+      - reschedule_count
+      - version
+      - gaps
+      - created_at
+      - updated_at
+      - series_title
+      - meeting_planned_start
+      title: ItemCard
+      type: object
+    ItemCreate:
+      properties:
+        agenda_item_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Пункт повестки этой встречи
+          title: Agenda Item Id
+        raw_text:
+          description: Строка решения
+          examples:
+          - Иван разберётся с выгрузкой к пятнице
+          maxLength: 1000
+          minLength: 1
+          title: Raw Text
+          type: string
+      required:
+      - raw_text
+      title: ItemCreate
+      type: object
+    ItemEventRead:
+      description: 'Строка журнала пункта: кто, что, когда.'
+      properties:
+        action:
+          $ref: '#/components/schemas/ItemAction'
+        actor_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Имя ведущего или исполнителя
+          examples:
+          - Иван Петров
+          title: Actor Name
+        actor_type:
+          $ref: '#/components/schemas/ActorType'
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        data:
+          additionalProperties: true
+          description: Только id, статусы и даты (BR-19)
+          examples:
+          - status_from: draft
+            status_to: pending
+          title: Data
+          type: object
+        id:
+          title: Id
+          type: integer
+      required:
+      - id
+      - action
+      - actor_type
+      - data
+      - created_at
+      title: ItemEventRead
+      type: object
+    ItemPage:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ItemRead'
+          title: Items
+          type: array
+        limit:
+          examples:
+          - 50
+          title: Limit
+          type: integer
+        offset:
+          examples:
+          - 0
+          title: Offset
+          type: integer
+        on_time_share_30d:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: 'Доля сделанного в срок за 30 дней (FR-44): пункты со сроком
+            в последние 30 дней, сделанные не позже срока, / все такие пункты, кроме
+            снятых. Учитывает фильтр по исполнителю. null - таких пунктов нет'
+          examples:
+          - 0.67
+          title: On Time Share 30D
+        total:
+          examples:
+          - 42
+          title: Total
+          type: integer
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      title: ItemPage
+      type: object
+    ItemRead:
+      description: 'Пункт: одна договорённость встречи.'
+      properties:
+        accept_blocked_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Почему нельзя; null, если можно
+          title: Accept Blocked Reason
+        accepted_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Accepted At
+        accepted_in_meeting:
+          description: Отмечено «Согласовано на встрече»
+          title: Accepted In Meeting
+          type: boolean
+        agenda_item_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Agenda Item Id
+        assignee:
+          anyOf:
+          - $ref: '#/components/schemas/PersonBrief'
+          - type: 'null'
+          description: Исполнитель; null - не назначен
+        can_accept_in_meeting:
+          description: Можно ли отметить «Согласовано» (BR-3)
+          title: Can Accept In Meeting
+          type: boolean
+        cancelled_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Cancelled At
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        done_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Done At
+        done_by:
+          anyOf:
+          - $ref: '#/components/schemas/DoneBy'
+          - type: 'null'
+        done_criteria:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Критерий «готово»
+          examples:
+          - Файл выгрузки в общей папке
+          title: Done Criteria
+        due_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          description: Срок в поясе серии
+          examples:
+          - '2026-10-16'
+          title: Due Date
+        due_text:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Срок словами из строки
+          examples:
+          - к пятнице
+          title: Due Text
+        gaps:
+          description: Открытые пробелы
+          items:
+            $ref: '#/components/schemas/GapRead'
+          title: Gaps
+          type: array
+        id:
+          format: uuid
+          title: Id
+          type: string
+        is_overdue:
+          description: Срок прошёл, а пункт в pending или accepted
+          title: Is Overdue
+          type: boolean
+        manual_fields:
+          description: Поля, правленные ведущим руками; LLM их не трогает (BR-15)
+          examples:
+          - - what
+          items:
+            type: string
+          title: Manual Fields
+          type: array
+        meeting_id:
+          format: uuid
+          title: Meeting Id
+          type: string
+        overload_warning:
+          anyOf:
+          - $ref: '#/components/schemas/OverloadWarning'
+          - type: 'null'
+          description: Только в ответе на создание и правку пункта
+        raw_text:
+          description: Исходная строка ведущего
+          examples:
+          - Иван разберётся с выгрузкой к пятнице
+          title: Raw Text
+          type: string
+        reschedule_count:
+          description: Сколько раз меняли срок после рассылки
+          title: Reschedule Count
+          type: integer
+        sent_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Sent At
+        series_id:
+          format: uuid
+          title: Series Id
+          type: string
+        source:
+          $ref: '#/components/schemas/ItemSource'
+        status:
+          $ref: '#/components/schemas/ItemStatus'
+        suggested:
+          description: Предложен автоматически
+          title: Suggested
+          type: boolean
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+        version:
+          description: Версия для If-Match
+          examples:
+          - 1
+          title: Version
+          type: integer
+        what:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Что сделать
+          examples:
+          - Разобраться с выгрузкой
+          title: What
+      required:
+      - id
+      - meeting_id
+      - series_id
+      - raw_text
+      - manual_fields
+      - source
+      - suggested
+      - status
+      - is_overdue
+      - accepted_in_meeting
+      - can_accept_in_meeting
+      - reschedule_count
+      - version
+      - gaps
+      - created_at
+      - updated_at
+      title: ItemRead
+      type: object
+    ItemSource:
+      enum:
+      - manual
+      - asr
+      title: ItemSource
+      type: string
+    ItemStatus:
+      enum:
+      - draft
+      - pending
+      - accepted
+      - disputed
+      - done
+      - cancelled
+      title: ItemStatus
+      type: string
+    ItemUpdate:
+      additionalProperties: false
+      description: 'Правка полей (FR-13, FR-16). Переданные поля попадают в manual_fields.
+
+        После рассылки исполнителя меняют только через actions/reassign.'
+      properties:
+        assignee_person_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Только участник серии (BR-1)
+          title: Assignee Person Id
+        done_criteria:
+          anyOf:
+          - maxLength: 500
+            type: string
+          - type: 'null'
+          title: Done Criteria
+        due_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          description: Не раньше сегодня (BR-2)
+          examples:
+          - '2026-10-30'
+          title: Due Date
+        due_text:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          title: Due Text
+        what:
+          anyOf:
+          - maxLength: 500
+            type: string
+          - type: 'null'
+          examples:
+          - Выгрузить отчёт по оттоку
+          title: What
+      title: ItemUpdate
+      type: object
+    LinkExpiredProblem:
+      properties:
+        code:
+          description: Стабильный код для фронтенда
+          examples:
+          - INVALID_TRANSITION
+          title: Code
+          type: string
+        detail:
+          anyOf:
+          - type: string
+          - type: 'null'
+          examples:
+          - Переход из done в pending запрещён
+          title: Detail
+        host_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Кому написать
+          examples:
+          - Мария Соколова
+          title: Host Name
+        instance:
+          anyOf:
+          - type: string
+          - type: 'null'
+          examples:
+          - /api/v1/items/3f0c.../actions
+          title: Instance
+        status:
+          examples:
+          - 409
+          title: Status
+          type: integer
+        title:
+          examples:
+          - Conflict
+          title: Title
+          type: string
+        type:
+          default: about:blank
+          examples:
+          - about:blank
+          title: Type
+          type: string
+      required:
+      - title
+      - status
+      - code
+      title: LinkExpiredProblem
+      type: object
+    LiveEvent:
+      description: Сообщение сервера в WS /ws/meetings/{id} (FR-14).
+      properties:
+        data:
+          additionalProperties: true
+          description: ItemRead или список GapRead
+          title: Data
+          type: object
+        event:
+          description: То же, что type
+          enum:
+          - item.created
+          - item.updated
+          - item.deleted
+          - gaps.updated
+          - closure.opened
+          - agenda.updated
+          - meeting.sent
+          title: Event
+          type: string
+        item_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          default: null
+          title: Item Id
+        meeting_id:
+          format: uuid
+          title: Meeting Id
+          type: string
+        type:
+          enum:
+          - item.created
+          - item.updated
+          - item.deleted
+          - gaps.updated
+          - closure.opened
+          - agenda.updated
+          - meeting.sent
+          title: Type
+          type: string
+        version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          description: 'Версия пункта: по ней клиент отличает новое от устаревшего'
+          title: Version
+      required:
+      - type
+      - event
+      - meeting_id
+      title: LiveEvent
+      type: object
+    LlmHealth:
+      properties:
+        available:
+          description: false - работает заглушка (ключа нет)
+          title: Available
+          type: boolean
+        provider:
+          examples:
+          - stub
+          title: Provider
+          type: string
+      required:
+      - available
+      - provider
+      title: LlmHealth
+      type: object
+    LlmTask:
+      enum:
+      - parse
+      - gaps
+      - question
+      - agenda
+      title: LlmTask
+      type: string
+    LoginRequest:
+      properties:
+        email:
+          description: E-mail, регистр не важен
+          examples:
+          - host@example.com
+          maxLength: 254
+          pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+          title: Email
+          type: string
+        password:
+          examples:
+          - demo1234
+          maxLength: 128
+          minLength: 1
+          title: Password
+          type: string
+      required:
+      - email
+      - password
+      title: LoginRequest
+      type: object
+    MeetingDetail:
+      description: 'Панель встречи: участники, повестка и пункты с открытыми пробелами.'
+      properties:
+        agenda:
+          items:
+            $ref: '#/components/schemas/AgendaItemRead'
+          title: Agenda
+          type: array
+        closure_opened_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Closure Opened At
+        closure_trigger:
+          anyOf:
+          - $ref: '#/components/schemas/ClosureTrigger'
+          - type: 'null'
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        items:
+          items:
+            $ref: '#/components/schemas/ItemRead'
+          title: Items
+          type: array
+        open_gaps_count:
+          description: Счётчик «осталось N пробелов»
+          examples:
+          - 2
+          title: Open Gaps Count
+          type: integer
+        participants:
+          items:
+            $ref: '#/components/schemas/ParticipantRead'
+          title: Participants
+          type: array
+        planned_end:
+          format: date-time
+          title: Planned End
+          type: string
+        planned_start:
+          format: date-time
+          title: Planned Start
+          type: string
+        series_id:
+          format: uuid
+          title: Series Id
+          type: string
+        series_title:
+          title: Series Title
+          type: string
+        started_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Started At
+        status:
+          $ref: '#/components/schemas/MeetingStatus'
+          description: planned -> live -> closing -> sent
+        summary_sent_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Summary Sent At
+        timezone:
+          description: Пояс серии
+          examples:
+          - Europe/Moscow
+          title: Timezone
+          type: string
+      required:
+      - id
+      - series_id
+      - planned_start
+      - planned_end
+      - status
+      - created_at
+      - series_title
+      - timezone
+      - participants
+      - agenda
+      - items
+      - open_gaps_count
+      title: MeetingDetail
+      type: object
+    MeetingRead:
+      properties:
+        closure_opened_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Closure Opened At
+        closure_trigger:
+          anyOf:
+          - $ref: '#/components/schemas/ClosureTrigger'
+          - type: 'null'
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        planned_end:
+          format: date-time
+          title: Planned End
+          type: string
+        planned_start:
+          format: date-time
+          title: Planned Start
+          type: string
+        series_id:
+          format: uuid
+          title: Series Id
+          type: string
+        started_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Started At
+        status:
+          $ref: '#/components/schemas/MeetingStatus'
+          description: planned -> live -> closing -> sent
+        summary_sent_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Summary Sent At
+      required:
+      - id
+      - series_id
+      - planned_start
+      - planned_end
+      - status
+      - created_at
+      title: MeetingRead
+      type: object
+    MeetingStart:
+      properties:
+        planned_end:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          description: Плановый конец; по умолчанию сейчас + длительность серии
+          title: Planned End
+      title: MeetingStart
+      type: object
+    MeetingStarted:
+      properties:
+        meeting:
+          $ref: '#/components/schemas/MeetingDetail'
+        review:
+          $ref: '#/components/schemas/ReviewRead'
+      required:
+      - meeting
+      - review
+      title: MeetingStarted
+      type: object
+    MeetingStatus:
+      enum:
+      - planned
+      - live
+      - closing
+      - sent
+      title: MeetingStatus
+      type: string
+    MeetingUpdate:
+      additionalProperties: false
+      properties:
+        participants:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ParticipantPresence'
+            type: array
+          - type: 'null'
+          description: Отметки присутствия
+          title: Participants
+        planned_end:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          description: Новый плановый конец
+          title: Planned End
+      title: MeetingUpdate
+      type: object
+    MemberCreate:
+      description: Участник серии. Тот же e-mail у ведущего означает того же человека.
+      properties:
+        email:
+          description: E-mail, регистр не важен
+          examples:
+          - host@example.com
+          maxLength: 254
+          pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+          title: Email
+          type: string
+        full_name:
+          examples:
+          - Иван Петров
+          maxLength: 200
+          minLength: 1
+          title: Full Name
+          type: string
+        organization_name:
+          description: 'Сторона: своя команда или внешняя организация; новая создаётся'
+          examples:
+          - ООО «Ромашка»
+          maxLength: 200
+          minLength: 1
+          title: Organization Name
+          type: string
+      required:
+      - full_name
+      - email
+      - organization_name
+      title: MemberCreate
+      type: object
+    MemberRead:
+      properties:
+        email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: null после обезличивания
+          examples:
+          - ivan@example.com
+          title: Email
+        full_name:
+          examples:
+          - Иван Петров
+          title: Full Name
+          type: string
+        is_own_side:
+          description: Своя сторона ведущего
+          title: Is Own Side
+          type: boolean
+        open_items:
+          default: 0
+          description: Открытые пункты со сроком в ближайшие 7 дней, по всем сериям
+            ведущего (FR-26)
+          examples:
+          - 3
+          title: Open Items
+          type: integer
+        organization_id:
+          format: uuid
+          title: Organization Id
+          type: string
+        organization_name:
+          examples:
+          - Команда продукта
+          title: Organization Name
+          type: string
+        person_id:
+          format: uuid
+          title: Person Id
+          type: string
+      required:
+      - person_id
+      - full_name
+      - organization_id
+      - organization_name
+      - is_own_side
+      title: MemberRead
+      type: object
+    OverloadWarning:
+      description: У исполнителя уже слишком много открытых пунктов (BR-9). Назначение
+        не блокируется.
+      properties:
+        open_items:
+          examples:
+          - 5
+          title: Open Items
+          type: integer
+        threshold:
+          examples:
+          - 5
+          title: Threshold
+          type: integer
+      required:
+      - open_items
+      - threshold
+      title: OverloadWarning
+      type: object
+    ParticipantPresence:
+      properties:
+        person_id:
+          format: uuid
+          title: Person Id
+          type: string
+        present:
+          title: Present
+          type: boolean
+      required:
+      - person_id
+      - present
+      title: ParticipantPresence
+      type: object
+    ParticipantRead:
+      properties:
+        full_name:
+          examples:
+          - Анна Смирнова
+          title: Full Name
+          type: string
+        organization_name:
+          examples:
+          - Команда продукта
+          title: Organization Name
+          type: string
+        person_id:
+          format: uuid
+          title: Person Id
+          type: string
+        present:
+          description: Присутствует
+          title: Present
+          type: boolean
+      required:
+      - person_id
+      - full_name
+      - organization_name
+      - present
+      title: ParticipantRead
+      type: object
+    PasswordResetConfirm:
+      properties:
+        new_password:
+          description: Пароль
+          examples:
+          - demo1234
+          maxLength: 128
+          minLength: 8
+          title: New Password
+          type: string
+        token:
+          description: Токен из письма сброса пароля
+          minLength: 1
+          title: Token
+          type: string
+      required:
+      - token
+      - new_password
+      title: PasswordResetConfirm
+      type: object
+    PasswordResetRequest:
+      properties:
+        email:
+          description: E-mail, регистр не важен
+          examples:
+          - host@example.com
+          maxLength: 254
+          pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+          title: Email
+          type: string
+      required:
+      - email
+      title: PasswordResetRequest
+      type: object
+    PersonBrief:
+      properties:
+        full_name:
+          examples:
+          - Иван Петров
+          title: Full Name
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        open_items:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Пункты в pending/accepted со сроком в ближайшие 7 дней, по
+            всем сериям ведущего
+          examples:
+          - 3
+          title: Open Items
+      required:
+      - id
+      - full_name
+      title: PersonBrief
+      type: object
+    Problem:
+      description: Ошибка в формате RFC 9457 (application/problem+json).
+      properties:
+        code:
+          description: Стабильный код для фронтенда
+          examples:
+          - INVALID_TRANSITION
+          title: Code
+          type: string
+        detail:
+          anyOf:
+          - type: string
+          - type: 'null'
+          examples:
+          - Переход из done в pending запрещён
+          title: Detail
+        instance:
+          anyOf:
+          - type: string
+          - type: 'null'
+          examples:
+          - /api/v1/items/3f0c.../actions
+          title: Instance
+        status:
+          examples:
+          - 409
+          title: Status
+          type: integer
+        title:
+          examples:
+          - Conflict
+          title: Title
+          type: string
+        type:
+          default: about:blank
+          examples:
+          - about:blank
+          title: Type
+          type: string
+      required:
+      - title
+      - status
+      - code
+      title: Problem
+      type: object
+    PromptCreate:
+      properties:
+        activate:
+          default: true
+          description: Сделать активной сразу (флаг is_active - OQ)
+          title: Activate
+          type: boolean
+        task:
+          $ref: '#/components/schemas/LlmTask'
+        text:
+          description: Текст новой версии
+          maxLength: 20000
+          minLength: 1
+          title: Text
+          type: string
+      required:
+      - task
+      - text
+      title: PromptCreate
+      type: object
+    PromptRead:
+      properties:
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        is_active:
+          title: Is Active
+          type: boolean
+        task:
+          $ref: '#/components/schemas/LlmTask'
+          description: parse, gaps или question
+        text:
+          description: Текст промпта
+          title: Text
+          type: string
+        version:
+          examples:
+          - 2
+          title: Version
+          type: integer
+      required:
+      - id
+      - task
+      - version
+      - text
+      - is_active
+      - created_at
+      title: PromptRead
+      type: object
+    PublicItem:
+      description: 'Пункт на странице исполнителя: без истории и чужих данных.'
+      properties:
+        actions:
+          description: 'Кнопки по статусу: pending - accept, reschedule, decline;
+            accepted - done, reschedule, decline; остальные - нет'
+          examples:
+          - - accept
+            - reschedule
+            - decline
+          items:
+            enum:
+            - accept
+            - reschedule
+            - decline
+            - done
+            type: string
+          title: Actions
+          type: array
+        done_criteria:
+          anyOf:
+          - type: string
+          - type: 'null'
+          examples:
+          - Таблица в общей папке
+          title: Done Criteria
+        due_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          examples:
+          - '2026-10-30'
+          title: Due Date
+        id:
+          format: uuid
+          title: Id
+          type: string
+        is_overdue:
+          title: Is Overdue
+          type: boolean
+        max_due_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          description: 'Позднейший допустимый новый срок: исходный + 60 дней (BR-6)'
+          title: Max Due Date
+        status:
+          $ref: '#/components/schemas/ItemStatus'
+          description: cancelled показывается как «снят» без кнопок
+        what:
+          anyOf:
+          - type: string
+          - type: 'null'
+          examples:
+          - Выгрузить отчёт по оттоку за квартал
+          title: What
+      required:
+      - id
+      - status
+      - is_overdue
+      - actions
+      title: PublicItem
+      type: object
+    PublicPage:
+      description: Данные страницы /p/{token}. GET ничего не меняет (BR-12).
+      properties:
+        csrf_token:
+          description: Передать в X-CSRF-Token при любом POST
+          title: Csrf Token
+          type: string
+        host_name:
+          examples:
+          - Мария Соколова
+          title: Host Name
+          type: string
+        items:
+          items:
+            $ref: '#/components/schemas/PublicItem'
+          title: Items
+          type: array
+        meeting_start:
+          format: date-time
+          title: Meeting Start
+          type: string
+        person_name:
+          examples:
+          - Иван Петров
+          title: Person Name
+          type: string
+        series_title:
+          examples:
+          - Еженедельная планёрка по запуску оплаты
+          title: Series Title
+          type: string
+        timezone:
+          examples:
+          - Europe/Moscow
+          title: Timezone
+          type: string
+        today:
+          description: 'Сегодня по поясу серии: нижняя граница нового срока'
+          format: date
+          title: Today
+          type: string
+      required:
+      - host_name
+      - series_title
+      - meeting_start
+      - person_name
+      - timezone
+      - today
+      - csrf_token
+      - items
+      title: PublicPage
+      type: object
+    ReassignAction:
+      properties:
+        action:
+          const: reassign
+          title: Action
+          type: string
+        assignee_person_id:
+          description: Новый исполнитель из состава серии
+          format: uuid
+          title: Assignee Person Id
+          type: string
+      required:
+      - action
+      - assignee_person_id
+      title: ReassignAction
+      type: object
+    RegisterRequest:
+      properties:
+        email:
+          description: E-mail, регистр не важен
+          examples:
+          - host@example.com
+          maxLength: 254
+          pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+          title: Email
+          type: string
+        full_name:
+          examples:
+          - Мария Соколова
+          maxLength: 200
+          minLength: 1
+          title: Full Name
+          type: string
+        password:
+          description: Пароль
+          examples:
+          - demo1234
+          maxLength: 128
+          minLength: 8
+          title: Password
+          type: string
+        pd_consent:
+          description: Согласие на обработку ПДн (NFR-12); без него регистрация не
+            проходит
+          examples:
+          - true
+          title: Pd Consent
+          type: boolean
+        timezone:
+          default: Europe/Moscow
+          description: Пояс IANA
+          examples:
+          - Europe/Moscow
+          title: Timezone
+          type: string
+      required:
+      - email
+      - password
+      - full_name
+      - pd_consent
+      title: RegisterRequest
+      type: object
+    ReopenAction:
+      properties:
+        action:
+          const: reopen
+          description: «Вернуть в работу»
+          title: Action
+          type: string
+      required:
+      - action
+      title: ReopenAction
+      type: object
+    RescheduleAction:
+      properties:
+        action:
+          const: reschedule
+          title: Action
+          type: string
+        due_date:
+          description: Новый срок, не раньше сегодня
+          examples:
+          - '2026-11-06'
+          format: date
+          title: Due Date
+          type: string
+      required:
+      - action
+      - due_date
+      title: RescheduleAction
+      type: object
+    RescheduleRequest:
+      properties:
+        comment:
+          anyOf:
+          - maxLength: 500
+            type: string
+          - type: 'null'
+          examples:
+          - Жду данные от бухгалтерии
+          title: Comment
+        due_date:
+          description: Не раньше сегодня и не позже исходного срока + 60 дней (BR-6)
+          examples:
+          - '2026-11-06'
+          format: date
+          title: Due Date
+          type: string
+      required:
+      - due_date
+      title: RescheduleRequest
+      type: object
+    ReviewRead:
+      description: Сверка в начале встречи (FR-42).
+      properties:
+        disputed:
+          description: «Это не моё»
+          items:
+            $ref: '#/components/schemas/ItemRead'
+          title: Disputed
+          type: array
+        done_since_last:
+          description: Сделано с прошлой встречи, одной строкой
+          items:
+            $ref: '#/components/schemas/ItemRead'
+          title: Done Since Last
+          type: array
+        overdue:
+          description: Просроченные pending и accepted
+          items:
+            $ref: '#/components/schemas/ItemRead'
+          title: Overdue
+          type: array
+        stale_pending:
+          description: Без ответа дольше 2 рабочих дней
+          items:
+            $ref: '#/components/schemas/ItemRead'
+          title: Stale Pending
+          type: array
+        unassigned:
+          description: Разосланы без исполнителя (BR-4)
+          items:
+            $ref: '#/components/schemas/ItemRead'
+          title: Unassigned
+          type: array
+      required:
+      - overdue
+      - disputed
+      - stale_pending
+      - unassigned
+      - done_since_last
+      title: ReviewRead
+      type: object
+    SendRequest:
+      properties:
+        confirm_open_gaps:
+          default: false
+          description: Разослать, хотя пробелы остались (OQ-03). Без флага и с пробелами
+            - 422 GAPS_OPEN
+          title: Confirm Open Gaps
+          type: boolean
+      title: SendRequest
+      type: object
+    SendResult:
+      properties:
+        already_sent:
+          description: 'Повторное нажатие: писем не добавилось (BR-5)'
+          title: Already Sent
+          type: boolean
+        items_sent:
+          description: Пунктов разослано
+          examples:
+          - 6
+          title: Items Sent
+          type: integer
+        items_total:
+          description: Пунктов во встрече
+          examples:
+          - 6
+          title: Items Total
+          type: integer
+        items_unassigned:
+          description: Пунктов без исполнителя (BR-4)
+          examples:
+          - 1
+          title: Items Unassigned
+          type: integer
+        items_with_open_gaps:
+          description: Пунктов с открытыми пробелами
+          examples:
+          - 1
+          title: Items With Open Gaps
+          type: integer
+        meeting:
+          $ref: '#/components/schemas/MeetingRead'
+        meeting_id:
+          format: uuid
+          title: Meeting Id
+          type: string
+        notifications_queued:
+          description: Писем поставлено в очередь
+          examples:
+          - 5
+          title: Notifications Queued
+          type: integer
+        recipients:
+          description: Участников встречи (FR-28.8)
+          examples:
+          - 5
+          title: Recipients
+          type: integer
+        status:
+          $ref: '#/components/schemas/MeetingStatus'
+        summary_sent_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Summary Sent At
+      required:
+      - meeting_id
+      - status
+      - summary_sent_at
+      - meeting
+      - items_sent
+      - notifications_queued
+      - already_sent
+      - items_total
+      - items_with_open_gaps
+      - items_unassigned
+      - recipients
+      title: SendResult
+      type: object
+    SeriesCreate:
+      properties:
+        capture_mode:
+          $ref: '#/components/schemas/CaptureMode'
+          default: manual
+          description: Способ записи решений
+        members:
+          description: Стартовый состав
+          items:
+            $ref: '#/components/schemas/MemberCreate'
+          title: Members
+          type: array
+        planned_duration_min:
+          description: Плановая длительность, минут
+          examples:
+          - 30
+          maximum: 240.0
+          minimum: 15.0
+          title: Planned Duration Min
+          type: integer
+        timezone:
+          default: Europe/Moscow
+          description: Пояс IANA
+          examples:
+          - Europe/Moscow
+          title: Timezone
+          type: string
+        title:
+          examples:
+          - Еженедельная планёрка по запуску оплаты
+          maxLength: 200
+          minLength: 1
+          title: Title
+          type: string
+      required:
+      - title
+      - planned_duration_min
+      title: SeriesCreate
+      type: object
+    SeriesDetail:
+      properties:
+        active_meeting_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Встреча в live или closing, если идёт
+          title: Active Meeting Id
+        capture_mode:
+          $ref: '#/components/schemas/CaptureMode'
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        last_meeting_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          description: Начало последней встречи
+          title: Last Meeting At
+        load_warning_threshold:
+          description: Сколько открытых пунктов у исполнителя за 7 дней должно набраться,
+            чтобы показать предупреждение (BR-9)
+          examples:
+          - 5
+          title: Load Warning Threshold
+          type: integer
+        members:
+          items:
+            $ref: '#/components/schemas/MemberRead'
+          title: Members
+          type: array
+        members_count:
+          examples:
+          - 4
+          title: Members Count
+          type: integer
+        open_items_count:
+          description: Пункты серии в pending и accepted
+          examples:
+          - 8
+          title: Open Items Count
+          type: integer
+        planned_duration_min:
+          examples:
+          - 30
+          title: Planned Duration Min
+          type: integer
+        status:
+          $ref: '#/components/schemas/SeriesStatus'
+        timezone:
+          examples:
+          - Europe/Moscow
+          title: Timezone
+          type: string
+        title:
+          examples:
+          - Еженедельная планёрка по запуску оплаты
+          title: Title
+          type: string
+      required:
+      - id
+      - title
+      - timezone
+      - planned_duration_min
+      - capture_mode
+      - status
+      - created_at
+      - load_warning_threshold
+      - open_items_count
+      - members_count
+      - members
+      title: SeriesDetail
+      type: object
+    SeriesRead:
+      properties:
+        active_meeting_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Встреча в live или closing, если идёт
+          title: Active Meeting Id
+        capture_mode:
+          $ref: '#/components/schemas/CaptureMode'
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        last_meeting_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          description: Начало последней встречи
+          title: Last Meeting At
+        load_warning_threshold:
+          description: Сколько открытых пунктов у исполнителя за 7 дней должно набраться,
+            чтобы показать предупреждение (BR-9)
+          examples:
+          - 5
+          title: Load Warning Threshold
+          type: integer
+        members_count:
+          examples:
+          - 4
+          title: Members Count
+          type: integer
+        open_items_count:
+          description: Пункты серии в pending и accepted
+          examples:
+          - 8
+          title: Open Items Count
+          type: integer
+        planned_duration_min:
+          examples:
+          - 30
+          title: Planned Duration Min
+          type: integer
+        status:
+          $ref: '#/components/schemas/SeriesStatus'
+        timezone:
+          examples:
+          - Europe/Moscow
+          title: Timezone
+          type: string
+        title:
+          examples:
+          - Еженедельная планёрка по запуску оплаты
+          title: Title
+          type: string
+      required:
+      - id
+      - title
+      - timezone
+      - planned_duration_min
+      - capture_mode
+      - status
+      - created_at
+      - load_warning_threshold
+      - open_items_count
+      - members_count
+      title: SeriesRead
+      type: object
+    SeriesStatus:
+      enum:
+      - active
+      - archived
+      title: SeriesStatus
+      type: string
+    SeriesUpdate:
+      additionalProperties: false
+      properties:
+        load_warning_threshold:
+          anyOf:
+          - minimum: 1.0
+            type: integer
+          - type: 'null'
+          description: Порог предупреждения о перегрузке, по умолчанию 5 (FR-26.7)
+          title: Load Warning Threshold
+        planned_duration_min:
+          anyOf:
+          - description: Плановая длительность, минут
+            examples:
+            - 30
+            maximum: 240.0
+            minimum: 15.0
+            type: integer
+          - type: 'null'
+          title: Planned Duration Min
+        timezone:
+          anyOf:
+          - description: Пояс IANA
+            examples:
+            - Europe/Moscow
+            type: string
+          - type: 'null'
+          title: Timezone
+        title:
+          anyOf:
+          - examples:
+            - Еженедельная планёрка по запуску оплаты
+            maxLength: 200
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Title
+      title: SeriesUpdate
+      type: object
+    SummaryText:
+      description: Итог простым текстом для мессенджера, без ссылок /p/ и токенов
+        (FR-36).
+      properties:
+        items_total:
+          examples:
+          - 6
+          title: Items Total
+          type: integer
+        text:
+          examples:
+          - 'Итоги встречи 16.10
+
+            1. Разобраться с выгрузкой — Иван Петров, до 23.10'
+          title: Text
+          type: string
+      required:
+      - text
+      - items_total
+      title: SummaryText
+      type: object
+    TokenRead:
+      description: Ответ на вход. Тот же JWT ставится в httpOnly-cookie `access_token`.
+      properties:
+        access_token:
+          description: 'JWT для заголовка Authorization: Bearer'
+          title: Access Token
+          type: string
+        expires_in:
+          description: Срок жизни сессии, секунд
+          examples:
+          - 604800
+          title: Expires In
+          type: integer
+        token_type:
+          const: bearer
+          default: bearer
+          title: Token Type
+          type: string
+        user:
+          $ref: '#/components/schemas/UserRead'
+      required:
+      - access_token
+      - expires_in
+      - user
+      title: TokenRead
+      type: object
+    UserRead:
+      properties:
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        email:
+          examples:
+          - host@example.com
+          title: Email
+          type: string
+        full_name:
+          examples:
+          - Мария Соколова
+          title: Full Name
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        timezone:
+          description: Пояс ведущего (IANA)
+          examples:
+          - Europe/Moscow
+          title: Timezone
+          type: string
+      required:
+      - id
+      - email
+      - full_name
+      - timezone
+      - created_at
+      title: UserRead
+      type: object
+    ValidationError:
+      properties:
+        ctx:
+          title: Context
+          type: object
+        input:
+          title: Input
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          title: Location
+          type: array
+        msg:
+          title: Message
+          type: string
+        type:
+          title: Error Type
+          type: string
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+      type: object
+  securitySchemes:
+    APIKeyCookie:
+      in: cookie
+      name: access_token
+      type: apiKey
+    AdminToken:
+      description: 'Служебный доступ: значение ADMIN_TOKEN. Если оно пусто, /admin
+        выключен.'
+      in: header
+      name: X-Admin-Token
+      type: apiKey
+    OAuth2PasswordBearer:
+      flows:
+        password:
+          scopes: {}
+          tokenUrl: /api/v1/auth/token
+      type: oauth2
+info:
+  description: '
+
+    Контракт этапов 1–2.
+
+
+    **Как попробовать** (локальный запуск с демо-данными, `DEMO_DATA=1`):
+
+    `POST /api/v1/auth/login` или кнопка **Authorize** (username `host@example.com`,
+
+    password `demo1234`), затем `GET /api/v1/series`.
+
+
+    Ошибки приходят как `application/problem+json` с полем `code`.
+
+    Изменение пункта идёт с заголовком `If-Match: <version>`.
+
+    Живая панель работает по WebSocket `/ws/meetings/{id}`, сообщения описаны схемой
+    `LiveEvent`.
+
+    '
+  title: Договорились API
+  version: dev
+openapi: 3.1.0
+paths:
+  /api/v1/admin/export/events.csv:
+    get:
+      description: 'События analytics_events без ПДн за период. Служебный доступ:
+        заголовок `X-Admin-Token`; сессия ведущего не подходит.'
+      operationId: export_events_api_v1_admin_export_events_csv_get
+      parameters:
+      - description: С какой даты (UTC), включительно
+        in: query
+        name: from
+        required: false
+        schema:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          description: С какой даты (UTC), включительно
+          title: From
+      - description: По какую дату (UTC), включительно
+        in: query
+        name: to
+        required: false
+        schema:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          description: По какую дату (UTC), включительно
+          title: To
+      responses:
+        '200':
+          content:
+            text/csv:
+              example: name,created_at,user_id,series_id,meeting_id,item_id,props
+          description: Successful Response
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет или неверный X-Admin-Token (ADMIN_FORBIDDEN); ADMIN_TOKEN
+            не задан (ADMIN_DISABLED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - AdminToken: []
+      summary: Выгрузка событий в CSV
+      tags:
+      - admin
+  /api/v1/admin/llm/prompts:
+    get:
+      description: 'Контракт LLM: все версии по задачам, сначала новые. Служебный
+        доступ: заголовок `X-Admin-Token`.'
+      operationId: list_prompts_api_v1_admin_llm_prompts_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/PromptRead'
+                title: Response List Prompts Api V1 Admin Llm Prompts Get
+                type: array
+          description: Successful Response
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет или неверный X-Admin-Token (ADMIN_FORBIDDEN); ADMIN_TOKEN
+            не задан (ADMIN_DISABLED)
+      security:
+      - AdminToken: []
+      summary: Версии промптов LLM
+      tags:
+      - admin
+    post:
+      description: Только новая строка в llm_prompts, старые не меняются. При `activate=true`
+        новая версия становится единственной активной для задачи.
+      operationId: create_prompt_api_v1_admin_llm_prompts_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptRead'
+          description: Successful Response
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет или неверный X-Admin-Token (ADMIN_FORBIDDEN); ADMIN_TOKEN
+            не задан (ADMIN_DISABLED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+      security:
+      - AdminToken: []
+      summary: Новая версия промпта
+      tags:
+      - admin
+  /api/v1/admin/persons/{person_id}/anonymize:
+    post:
+      description: 'Обезличивание по 152-ФЗ: имя меняется на «Участник N», e-mail
+        удаляется, комментарии чистятся, ссылки отзываются. Пункты и статистика остаются.
+        Служебный доступ: `X-Admin-Token`.'
+      operationId: anonymize_person_api_v1_admin_persons__person_id__anonymize_post
+      parameters:
+      - in: path
+        name: person_id
+        required: true
+        schema:
+          format: uuid
+          title: Person Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnonymizeResult'
+          description: Successful Response
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет или неверный X-Admin-Token (ADMIN_FORBIDDEN); ADMIN_TOKEN
+            не задан (ADMIN_DISABLED)
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - AdminToken: []
+      summary: Обезличить участника
+      tags:
+      - admin
+  /api/v1/agenda/{agenda_id}:
+    patch:
+      description: Меняет название, позицию или статус пункта повестки.
+      operationId: update_agenda_item_api_v1_agenda__agenda_id__patch
+      parameters:
+      - in: path
+        name: agenda_id
+        required: true
+        schema:
+          format: uuid
+          title: Agenda Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgendaItemUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgendaItemRead'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Серия в архиве (SERIES_ARCHIVED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Изменить пункт повестки
+      tags:
+      - meetings
+  /api/v1/auth/login:
+    post:
+      description: 'FR-01. Ставит httpOnly-cookie `access_token` (JWT, 7 дней) и возвращает
+        тот же токен в теле. Демо: host@example.com / demo1234.'
+      operationId: login_api_v1_auth_login_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRead'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверный e-mail или пароль (UNAUTHORIZED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Превышен лимит, см. Retry-After
+      summary: Вход ведущего
+      tags:
+      - auth
+  /api/v1/auth/logout:
+    post:
+      description: Сбрасывает cookie сессии. Bearer-токен живёт до своего срока.
+      operationId: logout_api_v1_auth_logout_post
+      responses:
+        '204':
+          description: Successful Response
+      summary: Выход
+      tags:
+      - auth
+  /api/v1/auth/me:
+    get:
+      description: Кто вошёл. Фронт зовёт при старте, 401 - показать вход.
+      operationId: me_api_v1_auth_me_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRead'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Текущий ведущий
+      tags:
+      - auth
+  /api/v1/auth/password-reset:
+    post:
+      description: Шлёт письмо со ссылкой на 1 час. Ответ одинаковый для любого e-mail.
+      operationId: password_reset_api_v1_auth_password_reset_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+        required: true
+      responses:
+        '202':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+      summary: Запросить сброс пароля
+      tags:
+      - auth
+  /api/v1/auth/password-reset/confirm:
+    post:
+      description: Токен одноразовый, живёт 1 час; истёк или использован - 410.
+      operationId: password_reset_confirm_api_v1_auth_password_reset_confirm_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+        required: true
+      responses:
+        '204':
+          description: Successful Response
+        '410':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Токен истёк или уже использован (LINK_EXPIRED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+      summary: Задать новый пароль по токену
+      tags:
+      - auth
+  /api/v1/auth/register:
+    post:
+      description: Без подтверждения e-mail. Без согласия на обработку ПДн - 422 (NFR-12);
+        время согласия пишется в `users.pd_consent_at`. Создаёт свою сторону ведущего.
+        Занятый e-mail - 409 `EMAIL_TAKEN`.
+      operationId: register_api_v1_auth_register_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRead'
+          description: Successful Response
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: E-mail уже занят (EMAIL_TAKEN)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+      summary: Регистрация ведущего
+      tags:
+      - auth
+  /api/v1/auth/token:
+    post:
+      description: 'Для кнопки Swagger «Authorize» и скриптов: поле `username` — e-mail.
+        Остальное как в `/auth/login`.'
+      operationId: login_form_api_v1_auth_token_post
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Body_login_form_api_v1_auth_token_post'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRead'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверный e-mail или пароль (UNAUTHORIZED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Превышен лимит, см. Retry-After
+      summary: Вход через форму OAuth2
+      tags:
+      - auth
+  /api/v1/health:
+    get:
+      operationId: health_api_v1_health_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: Successful Response
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: База недоступна (db=down)
+      summary: Проба живости
+      tags:
+      - health
+  /api/v1/items/{item_id}:
+    delete:
+      description: Только до рассылки, вместе с пробелами. После рассылки - 409, пункт
+        можно только «Снять».
+      operationId: delete_item_api_v1_items__item_id__delete
+      parameters:
+      - in: path
+        name: item_id
+        required: true
+        schema:
+          format: uuid
+          title: Item Id
+          type: string
+      - description: Версия пункта из поля `version` или заголовка ETag, например
+          `3` или `"3"`
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Версия пункта из поля `version` или заголовка ETag, например
+            `3` или `"3"`
+          title: If-Match
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: VERSION_CONFLICT - пункт уже изменён; INVALID_TRANSITION -
+            недопустимый переход; SERIES_ARCHIVED - серия в архиве
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+        '428':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет заголовка If-Match
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Удалить пункт в draft
+      tags:
+      - items
+    get:
+      description: Поля, статус, открытые пробелы и последний ответ исполнителя. Заголовок
+        ETag - версия для If-Match.
+      operationId: get_item_api_v1_items__item_id__get
+      parameters:
+      - in: path
+        name: item_id
+        required: true
+        schema:
+          format: uuid
+          title: Item Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemCard'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Карточка пункта
+      tags:
+      - items
+    patch:
+      description: В панели правятся все поля. После рассылки - только «что», срок
+        и «готово», исполнителя меняют через actions/reassign. Нужен If-Match. Смена
+        срока после рассылки увеличивает reschedule_count и отправляет исполнителю
+        письмо ITEM_CHANGED.
+      operationId: update_item_api_v1_items__item_id__patch
+      parameters:
+      - in: path
+        name: item_id
+        required: true
+        schema:
+          format: uuid
+          title: Item Id
+          type: string
+      - description: Версия пункта из поля `version` или заголовка ETag, например
+          `3` или `"3"`
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Версия пункта из поля `version` или заголовка ETag, например
+            `3` или `"3"`
+          title: If-Match
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemRead'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: VERSION_CONFLICT - пункт уже изменён; INVALID_TRANSITION -
+            недопустимый переход; SERIES_ARCHIVED - серия в архиве
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+        '428':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет заголовка If-Match
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Править пункт
+      tags:
+      - items
+  /api/v1/items/{item_id}/accept-in-meeting:
+    post:
+      description: '`value: true` ставит отметку, если исполнитель присутствует, есть
+        due_date и нет блокирующих пробелов (BR-3); `false` снимает её (OQ-10). Статус
+        остаётся draft до рассылки. Нужен If-Match.'
+      operationId: accept_in_meeting_api_v1_items__item_id__accept_in_meeting_post
+      parameters:
+      - in: path
+        name: item_id
+        required: true
+        schema:
+          format: uuid
+          title: Item Id
+          type: string
+      - description: Версия пункта из поля `version` или заголовка ETag, например
+          `3` или `"3"`
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Версия пункта из поля `version` или заголовка ETag, например
+            `3` или `"3"`
+          title: If-Match
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptInMeetingRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemRead'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: VERSION_CONFLICT; встреча уже разослана (ALREADY_SENT); серия
+            в архиве (SERIES_ARCHIVED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Исполнитель отсутствует или открыты пробелы (GAPS_OPEN, NOT_A_PARTICIPANT)
+        '428':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет заголовка If-Match
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: «Согласовано на встрече»
+      tags:
+      - items
+  /api/v1/items/{item_id}/actions:
+    post:
+      description: done, reschedule (новый срок), cancel («Снять»), reassign (из pending,
+        accepted или disputed в pending у нового исполнителя). Нужен If-Match.
+      operationId: item_action_api_v1_items__item_id__actions_post
+      parameters:
+      - in: path
+        name: item_id
+        required: true
+        schema:
+          format: uuid
+          title: Item Id
+          type: string
+      - description: Версия пункта из поля `version` или заголовка ETag, например
+          `3` или `"3"`
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Версия пункта из поля `version` или заголовка ETag, например
+            `3` или `"3"`
+          title: If-Match
+      requestBody:
+        content:
+          application/json:
+            examples:
+              cancel:
+                summary: Снять
+                value:
+                  action: cancel
+              done:
+                summary: Сделано
+                value:
+                  action: done
+              reschedule:
+                summary: Перенести
+                value:
+                  action: reschedule
+                  due_date: '2026-11-06'
+            schema:
+              discriminator:
+                mapping:
+                  cancel: '#/components/schemas/CancelAction'
+                  done: '#/components/schemas/DoneAction'
+                  reassign: '#/components/schemas/ReassignAction'
+                  reopen: '#/components/schemas/ReopenAction'
+                  reschedule: '#/components/schemas/RescheduleAction'
+                propertyName: action
+              oneOf:
+              - $ref: '#/components/schemas/DoneAction'
+              - $ref: '#/components/schemas/RescheduleAction'
+              - $ref: '#/components/schemas/CancelAction'
+              - $ref: '#/components/schemas/ReassignAction'
+              - $ref: '#/components/schemas/ReopenAction'
+              title: Body
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemRead'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: VERSION_CONFLICT - пункт уже изменён; INVALID_TRANSITION -
+            недопустимый переход; SERIES_ARCHIVED - серия в архиве
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+        '428':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет заголовка If-Match
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Действие ведущего над пунктом
+      tags:
+      - items
+  /api/v1/items/{item_id}/gaps/{gap_id}/dismiss:
+    post:
+      description: Ставит dismissed_at; пробел этого типа по пункту больше не показывается.
+        Повторный вызов - 200 без нового события.
+      operationId: dismiss_gap_api_v1_items__item_id__gaps__gap_id__dismiss_post
+      parameters:
+      - in: path
+        name: item_id
+        required: true
+        schema:
+          format: uuid
+          title: Item Id
+          type: string
+      - in: path
+        name: gap_id
+        required: true
+        schema:
+          format: uuid
+          title: Gap Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemRead'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Серия в архиве (SERIES_ARCHIVED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: «Не пробел»
+      tags:
+      - items
+  /api/v1/items/{item_id}/history:
+    get:
+      description: 'Журнал item_events: кто, что, когда. Доступен только ведущему
+        - владельцу серии.'
+      operationId: item_history_api_v1_items__item_id__history_get
+      parameters:
+      - in: path
+        name: item_id
+        required: true
+        schema:
+          format: uuid
+          title: Item Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ItemEventRead'
+                title: Response Item History Api V1 Items  Item Id  History Get
+                type: array
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: История пункта
+      tags:
+      - items
+  /api/v1/meetings/{meeting_id}:
+    get:
+      description: Встреча, участники, повестка и пункты с открытыми пробелами. После
+        обрыва WebSocket фронт перечитывает панель целиком.
+      operationId: get_meeting_api_v1_meetings__meeting_id__get
+      parameters:
+      - in: path
+        name: meeting_id
+        required: true
+        schema:
+          format: uuid
+          title: Meeting Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingDetail'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Панель встречи
+      tags:
+      - meetings
+    patch:
+      description: Меняет плановый конец и отметки присутствия.
+      operationId: update_meeting_api_v1_meetings__meeting_id__patch
+      parameters:
+      - in: path
+        name: meeting_id
+        required: true
+        schema:
+          format: uuid
+          title: Meeting Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeetingUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingDetail'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Серия в архиве (SERIES_ARCHIVED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Изменить встречу
+      tags:
+      - meetings
+  /api/v1/meetings/{meeting_id}/agenda:
+    post:
+      description: Не больше 20 пунктов на встречу.
+      operationId: add_agenda_item_api_v1_meetings__meeting_id__agenda_post
+      parameters:
+      - in: path
+        name: meeting_id
+        required: true
+        schema:
+          format: uuid
+          title: Meeting Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgendaItemCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgendaItemRead'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Серия в архиве (SERIES_ARCHIVED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Добавить пункт повестки
+      tags:
+      - meetings
+  /api/v1/meetings/{meeting_id}/closure:
+    post:
+      description: 'Переводит встречу из live в closing: пункты с пробелами поднимаются
+        наверх, темы без решений помечаются `uncovered`, в панель уходит closure.opened.
+        За 5 минут до planned_end то же самое делает Celery Beat (`closure_trigger
+        = timer`, FR-23).'
+      operationId: open_closure_api_v1_meetings__meeting_id__closure_post
+      parameters:
+      - in: path
+        name: meeting_id
+        required: true
+        schema:
+          format: uuid
+          title: Meeting Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingDetail'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Встреча не идёт (MEETING_NOT_LIVE) или уже разослана (ALREADY_SENT)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Открыть режим закрытия
+      tags:
+      - meetings
+  /api/v1/meetings/{meeting_id}/items:
+    post:
+      description: 'Строка до 1000 символов. Пункт создаётся в draft, поля раскладываются
+        правилами в панель уходят item.created и item.updated. Встреча должна быть
+        в live, closing или sent: пункт, добавленный после рассылки, уходит повторным
+        «Разослать» (OQ-02).'
+      operationId: create_item_api_v1_meetings__meeting_id__items_post
+      parameters:
+      - in: path
+        name: meeting_id
+        required: true
+        schema:
+          format: uuid
+          title: Meeting Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemRead'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Встреча ещё не началась (MEETING_NOT_LIVE); серия в архиве
+            (SERIES_ARCHIVED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Превышен лимит, см. Retry-After
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Добавить решение строкой
+      tags:
+      - items
+  /api/v1/meetings/{meeting_id}/review:
+    get:
+      description: 'Тот же список, что в ответе «Начать встречу»: без исполнителя,
+        просроченные, disputed, pending старше 2 рабочих дней, сделанные с прошлой
+        встречи.'
+      operationId: get_review_api_v1_meetings__meeting_id__review_get
+      parameters:
+      - in: path
+        name: meeting_id
+        required: true
+        schema:
+          format: uuid
+          title: Meeting Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewRead'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Сверка в начале встречи
+      tags:
+      - meetings
+  /api/v1/meetings/{meeting_id}/review/skip:
+    post:
+      description: Пункты остаются открытыми и покажутся на следующей встрече; пишется
+        событие review_skipped.
+      operationId: skip_review_api_v1_meetings__meeting_id__review_skip_post
+      parameters:
+      - in: path
+        name: meeting_id
+        required: true
+        schema:
+          format: uuid
+          title: Meeting Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Пропустить сверку
+      tags:
+      - meetings
+  /api/v1/meetings/{meeting_id}/send:
+    post:
+      description: 'Переводит пункты из draft в pending/accepted, ставит в очередь
+        письма SUMMARY и CONFIRM_REQUEST, выдаёт исполнителям ссылки. Повторное нажатие
+        писем не добавляет (BR-5). Встречу в sent можно разослать снова: уйдут только
+        новые draft-пункты, SUMMARY второй раз не отправляется (OQ-02).'
+      operationId: send_summary_api_v1_meetings__meeting_id__send_post
+      parameters:
+      - in: path
+        name: meeting_id
+        required: true
+        schema:
+          format: uuid
+          title: Meeting Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendResult'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Конфликт состояния; конкретная причина в поле code
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Остались пробелы, нужен confirm_open_gaps (GAPS_OPEN)
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Разослать итог
+      tags:
+      - meetings
+  /api/v1/meetings/{meeting_id}/summary-text:
+    post:
+      description: 'Доступен для встречи в closing или sent: решения, исполнители
+        («не назначен»), сроки; без ссылок /p/ и токенов. Пишет событие summary_copied
+        (items_total, был ли summary_sent).'
+      operationId: summary_text_api_v1_meetings__meeting_id__summary_text_post
+      parameters:
+      - in: path
+        name: meeting_id
+        required: true
+        schema:
+          format: uuid
+          title: Meeting Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryText'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Встреча ещё идёт, итога нет (SUMMARY_NOT_READY)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Текст итога для мессенджера
+      tags:
+      - meetings
+  /api/v1/p/{token}:
+    get:
+      description: 'Без входа. Пункты получателя по этой встрече и CSRF-токен. Ничего
+        не меняет (BR-12): письма открывают почтовые сканеры. Демо-токены: demo-ivan,
+        demo-anna, demo-oleg, demo-kate.'
+      operationId: get_page_api_v1_p__token__get
+      parameters:
+      - in: path
+        name: token
+        required: true
+        schema:
+          title: Token
+          type: string
+      - description: Тип письма, из которого открыта ссылка (для события link_opened)
+        in: query
+        name: n
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - SUMMARY
+            - CONFIRM_REQUEST
+            - CONFIRM_REPEAT
+            - DUE_TOMORROW
+            type: string
+          - type: 'null'
+          description: Тип письма, из которого открыта ссылка (для события link_opened)
+          title: N
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicPage'
+          description: Страница и CSRF-токен; тот же токен в cookie для double submit
+          headers:
+            Set-Cookie:
+              description: '`csrf_token=<токен>; HttpOnly; SameSite=Strict; Path=/api/v1/p`.
+                Действия шлют этот токен ещё и в заголовке X-CSRF-Token'
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '410':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkExpiredProblem'
+            application/problem+json: {}
+          description: Ссылка истекла или отозвана (LINK_EXPIRED); в ответе только
+            имя ведущего
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Превышен лимит, см. Retry-After
+      summary: Страница исполнителя по ссылке
+      tags:
+      - public-link
+  /api/v1/p/{token}/items/{item_id}/accept:
+    post:
+      description: pending -> accepted; повтор CONFIRM_REPEAT отменяется.
+      operationId: accept_api_v1_p__token__items__item_id__accept_post
+      parameters:
+      - in: path
+        name: token
+        required: true
+        schema:
+          title: Token
+          type: string
+      - in: path
+        name: item_id
+        required: true
+        schema:
+          format: uuid
+          title: Item Id
+          type: string
+      - description: csrf_token из GET /p/{token}
+        in: header
+        name: X-CSRF-Token
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: csrf_token из GET /p/{token}
+          title: X-Csrf-Token
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicItem'
+          description: Successful Response
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Чужой пункт (NOT_YOUR_ITEM) или нет CSRF-токена (CSRF_INVALID)
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Недопустимый переход (INVALID_TRANSITION) или серия в архиве
+            (SERIES_ARCHIVED)
+        '410':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkExpiredProblem'
+            application/problem+json: {}
+          description: Ссылка истекла или отозвана (LINK_EXPIRED); в ответе только
+            имя ведущего
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Превышен лимит, см. Retry-After
+      summary: «Принимаю»
+      tags:
+      - public-link
+  /api/v1/p/{token}/items/{item_id}/decline:
+    post:
+      description: pending/accepted -> disputed; комментарий до 500 символов; ведущему
+        HOST_RESPONSE.
+      operationId: decline_api_v1_p__token__items__item_id__decline_post
+      parameters:
+      - in: path
+        name: token
+        required: true
+        schema:
+          title: Token
+          type: string
+      - in: path
+        name: item_id
+        required: true
+        schema:
+          format: uuid
+          title: Item Id
+          type: string
+      - description: csrf_token из GET /p/{token}
+        in: header
+        name: X-CSRF-Token
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: csrf_token из GET /p/{token}
+          title: X-Csrf-Token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeclineRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicItem'
+          description: Successful Response
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Чужой пункт (NOT_YOUR_ITEM) или нет CSRF-токена (CSRF_INVALID)
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Недопустимый переход (INVALID_TRANSITION) или серия в архиве
+            (SERIES_ARCHIVED)
+        '410':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkExpiredProblem'
+            application/problem+json: {}
+          description: Ссылка истекла или отозвана (LINK_EXPIRED); в ответе только
+            имя ведущего
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Превышен лимит, см. Retry-After
+      summary: «Это не моё»
+      tags:
+      - public-link
+  /api/v1/p/{token}/items/{item_id}/done:
+    post:
+      description: Только из accepted -> done; ведущий не подтверждает.
+      operationId: done_api_v1_p__token__items__item_id__done_post
+      parameters:
+      - in: path
+        name: token
+        required: true
+        schema:
+          title: Token
+          type: string
+      - in: path
+        name: item_id
+        required: true
+        schema:
+          format: uuid
+          title: Item Id
+          type: string
+      - description: csrf_token из GET /p/{token}
+        in: header
+        name: X-CSRF-Token
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: csrf_token из GET /p/{token}
+          title: X-Csrf-Token
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicItem'
+          description: Successful Response
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Чужой пункт (NOT_YOUR_ITEM) или нет CSRF-токена (CSRF_INVALID)
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Недопустимый переход (INVALID_TRANSITION) или серия в архиве
+            (SERIES_ARCHIVED)
+        '410':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkExpiredProblem'
+            application/problem+json: {}
+          description: Ссылка истекла или отозвана (LINK_EXPIRED); в ответе только
+            имя ведущего
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Превышен лимит, см. Retry-After
+      summary: «Сделано»
+      tags:
+      - public-link
+  /api/v1/p/{token}/items/{item_id}/reschedule:
+    post:
+      description: pending/accepted -> accepted с новым сроком (BR-6); ведущему HOST_RESPONSE.
+      operationId: reschedule_api_v1_p__token__items__item_id__reschedule_post
+      parameters:
+      - in: path
+        name: token
+        required: true
+        schema:
+          title: Token
+          type: string
+      - in: path
+        name: item_id
+        required: true
+        schema:
+          format: uuid
+          title: Item Id
+          type: string
+      - description: csrf_token из GET /p/{token}
+        in: header
+        name: X-CSRF-Token
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: csrf_token из GET /p/{token}
+          title: X-Csrf-Token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RescheduleRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicItem'
+          description: Successful Response
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Чужой пункт (NOT_YOUR_ITEM) или нет CSRF-токена (CSRF_INVALID)
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Недопустимый переход (INVALID_TRANSITION) или серия в архиве
+            (SERIES_ARCHIVED)
+        '410':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkExpiredProblem'
+            application/problem+json: {}
+          description: Ссылка истекла или отозвана (LINK_EXPIRED); в ответе только
+            имя ведущего
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Превышен лимит, см. Retry-After
+      summary: «Нужен другой срок»
+      tags:
+      - public-link
+  /api/v1/series:
+    get:
+      description: Только серии текущего ведущего, вместе с архивными; сначала новые.
+      operationId: list_series_api_v1_series_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/SeriesRead'
+                title: Response List Series Api V1 Series Get
+                type: array
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Мои серии
+      tags:
+      - series
+    post:
+      description: Название, часовой пояс, длительность 15–240 минут и стартовый состав.
+      operationId: create_series_api_v1_series_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SeriesCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeriesDetail'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Создать серию
+      tags:
+      - series
+  /api/v1/series/{series_id}:
+    get:
+      description: Серия вместе с участниками. Чужая серия - 404.
+      operationId: get_series_api_v1_series__series_id__get
+      parameters:
+      - in: path
+        name: series_id
+        required: true
+        schema:
+          format: uuid
+          title: Series Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeriesDetail'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Серия с составом
+      tags:
+      - series
+    patch:
+      description: Название, пояс и длительность; проверки те же, что при создании.
+      operationId: update_series_api_v1_series__series_id__patch
+      parameters:
+      - in: path
+        name: series_id
+        required: true
+        schema:
+          format: uuid
+          title: Series Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SeriesUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeriesDetail'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Серия в архиве (SERIES_ARCHIVED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Изменить серию
+      tags:
+      - series
+  /api/v1/series/{series_id}/archive:
+    post:
+      description: Серия остаётся для чтения, новые встречи в ней начать нельзя. Пока
+        идёт встреча, архивировать нельзя. Повторный вызов - 200, дата архивации не
+        меняется.
+      operationId: archive_series_api_v1_series__series_id__archive_post
+      parameters:
+      - in: path
+        name: series_id
+        required: true
+        schema:
+          format: uuid
+          title: Series Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeriesDetail'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Идёт встреча (MEETING_ALREADY_LIVE)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Архивировать серию
+      tags:
+      - series
+  /api/v1/series/{series_id}/items:
+    get:
+      description: История пунктов серии. Фильтры по статусу, исполнителю, встрече
+        и просрочке; сначала новые. Пагинация limit/offset. `on_time_share_30d` -
+        доля сделанного в срок за 30 дней.
+      operationId: series_items_api_v1_series__series_id__items_get
+      parameters:
+      - in: path
+        name: series_id
+        required: true
+        schema:
+          format: uuid
+          title: Series Id
+          type: string
+      - description: Один или несколько статусов
+        in: query
+        name: status
+        required: false
+        schema:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ItemStatus'
+            type: array
+          - type: 'null'
+          description: Один или несколько статусов
+          title: Status
+      - description: Только пункты этого исполнителя
+        in: query
+        name: assignee_person_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Только пункты этого исполнителя
+          title: Assignee Person Id
+      - description: Только пункты этой встречи
+        in: query
+        name: meeting_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Только пункты этой встречи
+          title: Meeting Id
+      - description: Только просроченные
+        in: query
+        name: overdue
+        required: false
+        schema:
+          default: false
+          description: Только просроченные
+          title: Overdue
+          type: boolean
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 200
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemPage'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Пункты серии
+      tags:
+      - items
+  /api/v1/series/{series_id}/meetings:
+    get:
+      description: Встречи серии, сначала новые.
+      operationId: list_meetings_api_v1_series__series_id__meetings_get
+      parameters:
+      - in: path
+        name: series_id
+        required: true
+        schema:
+          format: uuid
+          title: Series Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MeetingRead'
+                title: Response List Meetings Api V1 Series  Series Id  Meetings Get
+                type: array
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Встречи серии
+      tags:
+      - meetings
+    post:
+      description: Встреча сразу создаётся в live, все участники серии отмечены присутствующими.
+        В ответе - встреча и список для сверки.
+      operationId: start_meeting_api_v1_series__series_id__meetings_post
+      parameters:
+      - in: path
+        name: series_id
+        required: true
+        schema:
+          format: uuid
+          title: Series Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeetingStart'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingStarted'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Уже идёт встреча (MEETING_ALREADY_LIVE) или серия в архиве
+            (SERIES_ARCHIVED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Начать встречу
+      tags:
+      - meetings
+  /api/v1/series/{series_id}/members:
+    get:
+      description: Имя, e-mail и сторона каждого участника.
+      operationId: list_members_api_v1_series__series_id__members_get
+      parameters:
+      - in: path
+        name: series_id
+        required: true
+        schema:
+          format: uuid
+          title: Series Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MemberRead'
+                title: Response List Members Api V1 Series  Series Id  Members Get
+                type: array
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Состав серии
+      tags:
+      - series
+    post:
+      description: 'Если у ведущего уже есть человек с таким e-mail, в серию попадает
+        он, дубль не создаётся. Звать можно прямо из панели встречи: участник сразу
+        добавляется в идущую встречу.'
+      operationId: add_member_api_v1_series__series_id__members_post
+      parameters:
+      - in: path
+        name: series_id
+        required: true
+        schema:
+          format: uuid
+          title: Series Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberRead'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Серия в архиве (SERIES_ARCHIVED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Неверные данные; причина в поле code
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Добавить участника
+      tags:
+      - series
+  /api/v1/series/{series_id}/members/{person_id}:
+    delete:
+      description: Пункты участника не меняются, но новым исполнителем его назначить
+        уже нельзя.
+      operationId: remove_member_api_v1_series__series_id__members__person_id__delete
+      parameters:
+      - in: path
+        name: series_id
+        required: true
+        schema:
+          format: uuid
+          title: Series Id
+          type: string
+      - in: path
+        name: person_id
+        required: true
+        schema:
+          format: uuid
+          title: Person Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет сессии или она истекла
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Серия в архиве (SERIES_ARCHIVED)
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyCookie: []
+      - OAuth2PasswordBearer: []
+      summary: Исключить участника
+      tags:
+      - series
+tags:
+- description: Вход ведущего и выход
+  name: auth
+- description: Серии встреч и их участники
+  name: series
+- description: 'Встречи: проведение, закрытие и рассылка итогов'
+  name: meetings
+- description: Пункты решений и их карточки
+  name: items
+- description: Страница исполнителя по ссылке, без входа
+  name: public-link
+- description: Служебные ручки, включая промпты LLM
+  name: admin
+- description: Проба живости
+  name: health
