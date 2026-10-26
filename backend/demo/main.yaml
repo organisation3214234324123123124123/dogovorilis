@@ -1,0 +1,130 @@
+# Демо-набор «main»: `python -m app.demo load` (или reset). Загружается сам при `docker compose up`.
+#
+# Демо-логины (вход в приложение есть только у ведущего):
+#   ведущий:  host@example.com / demo1234
+# Ссылки исполнителей (страница /p/<токен>, без входа):
+#   Иван Петров       /p/demo-ivan
+#   Анна Смирнова     /p/demo-anna
+#   Олег Кузнецов     /p/demo-oleg
+#   Екатерина Волкова /p/demo-kate
+#
+# Формат: <сущность>: [записи]; записи ссылаются друг на друга по `ref`.
+# Даты относительные: due.days — дней от сегодня (пояс серии); meeting.start — {days, time} или {minutes}.
+# Адреса только @example.com: письма никуда не уйдут.
+
+users:
+  - ref: host
+    email: host@example.com
+    password: demo1234
+    full_name: Мария Соколова
+
+organizations:
+  - {ref: own, owner: host, name: Команда продукта, is_own: true}
+  - {ref: client, owner: host, name: ООО «Ромашка»}
+
+persons:
+  - {ref: ivan, owner: host, organization: own, full_name: Иван Петров, email: ivan@example.com}
+  - {ref: anna, owner: host, organization: own, full_name: Анна Смирнова, email: anna@example.com}
+  - {ref: oleg, owner: host, organization: client, full_name: Олег Кузнецов, email: oleg@example.com}
+  - {ref: kate, owner: host, organization: client, full_name: Екатерина Волкова, email: kate@example.com}
+
+series:
+  - ref: weekly
+    owner: host
+    title: Еженедельная планёрка по запуску оплаты
+    timezone: Europe/Moscow
+    planned_duration_min: 30
+    members: [ivan, anna, oleg, kate]
+
+meetings:
+  - ref: last
+    series: weekly
+    start: {days: -7, time: "10:00"}
+    status: sent
+    participants: {ivan: true, anna: true, oleg: true, kate: false}
+  - ref: today
+    series: weekly
+    start: {minutes: -15}
+    status: live
+    participants: {ivan: true, anna: true, oleg: true, kate: true}
+
+items:
+  - meeting: last
+    raw_text: Иван выгрузит отчёт по оттоку за квартал в течение двух недель
+    what: Выгрузить отчёт по оттоку за квартал
+    assignee: ivan
+    due: {days: 7}
+    due_text: в течение двух недель
+    done_criteria: Таблица в общей папке, разбивка по месяцам
+    status: pending
+  - meeting: last
+    raw_text: Анна согласует с юристами текст оферты за пять дней
+    what: Согласовать с юристами текст оферты
+    assignee: anna
+    due: {days: -2}
+    due_text: за пять дней
+    done_criteria: Письмо юристов с согласованием
+    status: accepted
+  - meeting: last
+    raw_text: Олег пришлёт доступы к тестовому стенду через три дня
+    what: Прислать доступы к тестовому стенду
+    assignee: oleg
+    due: {days: -4}
+    due_text: через три дня
+    status: pending
+  - meeting: last
+    raw_text: Катя проверит расчёт скидок в новом прайсе к следующей планёрке
+    what: Проверить расчёт скидок в новом прайсе
+    assignee: kate
+    due: {days: 3}
+    due_text: к следующей планёрке
+    status: accepted
+    reschedule_count: 1
+    comment: {kind: reschedule, text: "Жду выгрузку от бухгалтерии, раньше не успею"}
+  - meeting: last
+    raw_text: Олег проведёт демо для отдела продаж
+    what: Провести демо для отдела продаж
+    assignee: oleg
+    due: {days: 2}
+    status: disputed
+    comment: {kind: not_mine, text: "Демо проводит Анна, я только готовлю стенд"}
+  - meeting: last
+    raw_text: Иван обновит инструкцию по выгрузке до среды
+    what: Обновить инструкцию по выгрузке
+    assignee: ivan
+    due: {days: -1}
+    due_text: до среды
+    status: done
+    accepted_in_meeting: true
+  - meeting: last
+    raw_text: Анна закажет перевод англоязычной версии
+    what: Заказать перевод англоязычной версии
+    assignee: anna
+    due: {days: 5}
+    status: cancelled
+  - meeting: last
+    raw_text: Надо решить, кто отвечает за рассылку клиентам
+    what: Назначить ответственного за рассылку клиентам
+    status: pending
+  - meeting: today
+    raw_text: Иван посмотрит логи падения оплаты
+    what: Посмотреть логи падения оплаты
+    assignee: ivan
+    status: draft
+    gaps:
+      - {type: no_due, question: "Иван, к какому сроку?"}
+      - {type: vague_action, question: "Что будет результатом?"}
+  - meeting: today
+    raw_text: Анна за два дня созвонится с клиентом и пришлёт протокол
+    what: Созвониться с клиентом и прислать протокол
+    assignee: anna
+    due: {days: 2}
+    due_text: за два дня
+    done_criteria: Протокол созвона в чате проекта
+    status: draft
+
+access_links:
+  - {person: ivan, meeting: last, token: demo-ivan}
+  - {person: anna, meeting: last, token: demo-anna}
+  - {person: oleg, meeting: last, token: demo-oleg}
+  - {person: kate, meeting: last, token: demo-kate}

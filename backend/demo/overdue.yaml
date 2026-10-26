@@ -1,0 +1,44 @@
+# Демо-набор «overdue»: много просрочек для сверки. `python -m app.demo load --set overdue`.
+# Можно грузить поверх main: ведущий и участники с теми же e-mail переиспользуются.
+#
+# Демо-логины:
+#   ведущий:  host@example.com / demo1234
+# Ссылки исполнителей: /p/demo-overdue-oleg, /p/demo-overdue-kate
+
+users:
+  - {ref: host, email: host@example.com, password: demo1234, full_name: Мария Соколова}
+
+organizations:
+  - {ref: own, owner: host, name: Команда продукта, is_own: true}
+  - {ref: client, owner: host, name: ООО «Ромашка»}
+
+persons:
+  - {ref: anna, owner: host, organization: own, full_name: Анна Смирнова, email: anna@example.com}
+  - {ref: oleg, owner: host, organization: client, full_name: Олег Кузнецов, email: oleg@example.com}
+  - {ref: kate, owner: host, organization: client, full_name: Екатерина Волкова, email: kate@example.com}
+
+series:
+  - ref: client
+    owner: host
+    title: Созвон с клиентом «Ромашка»
+    timezone: Europe/Moscow
+    planned_duration_min: 45
+    members: [anna, oleg, kate]
+
+meetings:
+  - ref: old
+    series: client
+    start: {days: -14, time: "15:00"}
+    status: sent
+    participants: {anna: true, oleg: true, kate: true}
+
+items:
+  - {meeting: old, raw_text: Олег согласует бюджет на второй этап, what: Согласовать бюджет на второй этап, assignee: oleg, due: {days: -7}, status: accepted}
+  - {meeting: old, raw_text: Олег пришлёт подписанный акт, what: Прислать подписанный акт, assignee: oleg, due: {days: -3}, status: pending}
+  - {meeting: old, raw_text: Катя передаст список пользователей для импорта, what: Передать список пользователей для импорта, assignee: kate, due: {days: -10}, status: accepted, reschedule_count: 2}
+  - {meeting: old, raw_text: Катя подтвердит дату запуска, what: Подтвердить дату запуска, assignee: kate, due: {days: -1}, status: pending}
+  - {meeting: old, raw_text: Анна пришлёт клиенту план работ, what: Прислать клиенту план работ, assignee: anna, due: {days: -5}, status: done}
+
+access_links:
+  - {person: oleg, meeting: old, token: demo-overdue-oleg}
+  - {person: kate, meeting: old, token: demo-overdue-kate}
