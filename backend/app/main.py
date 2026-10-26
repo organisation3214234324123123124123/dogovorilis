@@ -5,6 +5,7 @@ from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import RequestLogMiddleware, setup_logging
 from app.core.security import register_openapi_security
+from app.modules.analytics.router import router as analytics_router
 from app.modules.auth.router import router as auth_router
 from app.modules.confirm.router import router as confirm_router
 from app.modules.health.router import router as health_router
@@ -13,6 +14,28 @@ from app.modules.live.router import router as live_router
 from app.modules.live.schemas import LiveEvent
 from app.modules.llm.router import router as llm_router
 from app.modules.series.router import router as series_router
+
+DESCRIPTION = """
+Контракт этапов 1–2.
+
+**Как попробовать** (локальный запуск с демо-данными, `DEMO_DATA=1`):
+`POST /api/v1/auth/login` или кнопка **Authorize** (username `host@example.com`,
+password `demo1234`), затем `GET /api/v1/series`.
+
+Ошибки приходят как `application/problem+json` с полем `code`.
+Изменение пункта идёт с заголовком `If-Match: <version>`.
+Живая панель работает по WebSocket `/ws/meetings/{id}`, сообщения описаны схемой `LiveEvent`.
+"""
+
+TAGS = [
+    {"name": "auth", "description": "Вход ведущего и выход"},
+    {"name": "series", "description": "Серии встреч и их участники"},
+    {"name": "meetings", "description": "Встречи: проведение, закрытие и рассылка итогов"},
+    {"name": "items", "description": "Пункты решений и их карточки"},
+    {"name": "public-link", "description": "Страница исполнителя по ссылке, без входа"},
+    {"name": "admin", "description": "Служебные ручки, включая промпты LLM"},
+    {"name": "health", "description": "Проба живости"},
+]
 
 
 def add_ws_schemas(app: FastAPI) -> None:
@@ -38,6 +61,8 @@ def create_app() -> FastAPI:
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
         redoc_url=None,
+        description=DESCRIPTION,
+        openapi_tags=TAGS,
         swagger_ui_parameters={"persistAuthorization": True},
     )
     app.add_middleware(
@@ -60,6 +85,7 @@ def create_app() -> FastAPI:
         series_router,
         items_router,
         confirm_router,
+        analytics_router,
         llm_router,
     ):
         api.include_router(router)
