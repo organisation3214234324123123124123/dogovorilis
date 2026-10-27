@@ -1,6 +1,28 @@
 name: dogovor
 
-# База и брокер для разработки: docker compose up -d db redis
+# Весь бэкенд одной командой: docker compose up
+# API и Swagger: http://localhost:8000/api/docs
+x-backend: &backend
+  build: ./backend
+  restart: unless-stopped
+  image: dogovorilis-backend:${APP_VERSION:-dev}
+  # .env необязателен: без него работают значения по умолчанию.
+  # Из .env подтянутся и остальные переменные (SECRET_KEY, LLM_*, SMTP_* и т.д.).
+  env_file:
+    - path: .env
+      required: false
+  environment: &backend-env
+    APP_VERSION: ${APP_VERSION:-dev}
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leaderhelp}:${POSTGRES_PASSWORD:-leaderhelp}@db:5432/${POSTGRES_DB:-leaderhelp}
+    REDIS_URL: redis://redis:6379/0
+    # Демо-данные для локального показа; на сервере DEMO_DATA=0.
+    DEMO_DATA: ${DEMO_DATA:-1}
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
 services:
   db:
     image: postgres:16-alpine
@@ -20,6 +42,36 @@ services:
   redis:
     restart: unless-stopped
     image: redis:7-alpine
+
+  backend:
+    <<: *backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  worker:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      RUN_MIGRATIONS: "0"
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: ["celery", "-A", "app.worker", "worker", "-l", "info"]
+
+  beat:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      RUN_MIGRATIONS: "0"
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: ["celery", "-A", "app.worker", "beat", "-l", "info", "-s", "/tmp/celerybeat-schedule"]
 
 volumes:
   pgdata:
