@@ -2,9 +2,17 @@ name: dogovor
 
 # Весь бэкенд одной командой: docker compose up
 # API и Swagger: http://localhost:8000/api/docs
+# Логи контейнеров с ротацией: до трёх файлов по 10 МБ на сервис.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-backend: &backend
   build: ./backend
   restart: unless-stopped
+  logging: *logging
   image: dogovorilis-backend:${APP_VERSION:-dev}
   # .env необязателен: без него работают значения по умолчанию.
   # Из .env подтянутся и остальные переменные (SECRET_KEY, LLM_*, SMTP_* и т.д.).
@@ -27,6 +35,7 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-leaderhelp}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-leaderhelp}
@@ -41,6 +50,7 @@ services:
 
   redis:
     restart: unless-stopped
+    logging: *logging
     image: redis:7-alpine
 
   backend:
