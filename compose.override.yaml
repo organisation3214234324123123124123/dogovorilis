@@ -1,0 +1,16 @@
+# Режим разработки. docker compose подхватывает этот файл сам при `docker compose up`
+# (локально и в CI). На сервере его не используют: `docker compose -f compose.yaml ...`
+# (см. README, раздел "Развёртывание на сервере"). Без этого файла сервис работает в боевом
+# режиме: нет /auth/token и Bearer, нет демо-данных, cookie Secure, слабые секреты не допускаются.
+services:
+  backend:
+    environment:
+      DEV_MODE: "1"
+      DEMO_DATA: "1"
+  # Воркеру и beat нужен DEV_MODE, иначе проверка слабого SECRET_KEY не даст им стартовать.
+  worker:
+    environment:
+      DEV_MODE: "1"
+  beat:
+    environment:
+      DEV_MODE: "1"
