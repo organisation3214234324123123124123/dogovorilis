@@ -4,6 +4,7 @@ name: dogovor
 # API и Swagger: http://localhost:8000/api/docs
 x-backend: &backend
   build: ./backend
+  restart: unless-stopped
   image: dogovorilis-backend:${APP_VERSION:-dev}
   # .env необязателен: без него работают значения по умолчанию.
   # Из .env подтянутся и остальные переменные (SECRET_KEY, LLM_*, SMTP_* и т.д.).
