@@ -6,7 +6,8 @@ COV_MIN ?= 90
 SET ?=
 DEMO_SET := $(if $(SET),--set $(SET),)
 
-.PHONY: env up down logs install lint fmt test openapi migrations-check migration check test-db
+.PHONY: up down logs install lint fmt test check openapi migration migrations-check schema schema-check \
+	demo demo-reset test-db smoke env
 
 env:
 	@test -f .env || { cp .env.example .env; echo ".env создан из .env.example"; }
@@ -52,9 +53,24 @@ migration:
 	@test -n "$(m)" || { echo 'usage: make migration m="message"'; exit 1; }
 	cd backend && uv run alembic revision --autogenerate -m "$(m)"
 
+schema:
+	$(TO) 600 bash db/dump_schema.sh
+
+schema-check: schema
+	git diff --exit-code -- db/schema.sql
+
 check: lint test migrations-check
 	$(MAKE) --no-print-directory openapi
 	git diff --exit-code -- docs/api/openapi.yaml
 
+demo:
+	cd backend && $(TO) 120 uv run python -m app.demo load $(DEMO_SET)
+
+demo-reset:
+	cd backend && $(TO) 120 uv run python -m app.demo reset $(DEMO_SET)
+
 test-db:
 	$(TO) 240 ./scripts/test-db.sh
+
+smoke:
+	bash tests/smoke/smoke.sh http://localhost:$${BACKEND_PORT:-8000}
