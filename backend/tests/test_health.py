@@ -36,8 +36,16 @@ def redis_db(monkeypatch: pytest.MonkeyPatch, settings_reset: None) -> Iterator[
     get_settings.cache_clear()
 
 
-def set_llm(monkeypatch: pytest.MonkeyPatch, key: str) -> None:
+def set_llm(
+    monkeypatch: pytest.MonkeyPatch,
+    key: str,
+    model: str = "model",
+    base_url: str | None = None,
+) -> None:
     monkeypatch.setenv("LLM_API_KEY", key)
+    monkeypatch.setenv("LLM_MODEL", model)
+    if base_url:
+        monkeypatch.setenv("LLM_BASE_URL", base_url)
     get_settings.cache_clear()
 
 
@@ -91,6 +99,34 @@ def test_health_is_degraded_with_200_when_llm_is_stub(
     r = get_health(client)
     assert r.status_code == 200
     assert (r.json()["status"], r.json()["llm"]["available"]) == ("degraded", False)
+
+
+def test_health_llm_is_stub_when_key_set_but_model_empty(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    set_llm(monkeypatch, "k" * 20, model="  ")
+    send_due_mails()
+    r = get_health(client)
+    assert r.status_code == 200
+    assert r.json()["llm"] == {"available": False, "provider": "stub"}
+    assert r.json()["status"] == "degraded"
+
+
+def test_health_llm_provider_is_host_of_base_url(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    set_llm(monkeypatch, "k" * 20, base_url="https://api.groq.com/openai/v1")
+    send_due_mails()
+    r = get_health(client)
+    assert r.json()["llm"] == {"available": True, "provider": "api.groq.com"}
+    assert r.json()["status"] == "ok"
+
+
+def test_health_llm_provider_for_default_base_url(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    set_llm(monkeypatch, "k" * 20)
+    assert get_health(client).json()["llm"]["provider"] == "llm.api.cloud.yandex.net"
 
 
 def test_health_is_degraded_when_oldest_queued_mail_is_older_than_5_minutes(

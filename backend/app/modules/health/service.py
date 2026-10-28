@@ -1,5 +1,6 @@
 import logging
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlsplit
 
 import redis
 from sqlalchemy import text
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.modules.health import heartbeat, repository
 from app.modules.health.schemas import EmailQueueHealth, Health, LlmHealth
+from app.modules.llm.client import llm_configured
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +23,10 @@ def check(db: Session) -> Health:
     degraded (200): заглушка LLM, старейшее письмо ждёт больше 5 минут, воркер молчит больше 3.
     """
     settings = get_settings()
+    available = llm_configured()
     llm = LlmHealth(
-        available=bool(settings.llm_api_key),
-        provider="yandexgpt" if settings.llm_api_key else "stub",
+        available=available,
+        provider=(urlsplit(settings.llm_base_url).hostname or "unknown") if available else "stub",
     )
     now = datetime.now(UTC)
     queued, failed, oldest, worker_last_run = 0, 0, None, None

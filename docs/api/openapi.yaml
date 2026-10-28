@@ -1027,10 +1027,11 @@ components:
     LlmHealth:
       properties:
         available:
-          description: false - работает заглушка (ключа нет)
+          description: false - работает заглушка (нет ключа или модели)
           title: Available
           type: boolean
         provider:
+          description: Хост LLM_BASE_URL; stub - если LLM недоступна
           examples:
           - stub
           title: Provider

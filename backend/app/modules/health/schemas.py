@@ -11,8 +11,10 @@ class EmailQueueHealth(BaseModel):
 
 
 class LlmHealth(BaseModel):
-    available: bool = Field(description="false - работает заглушка (ключа нет)")
-    provider: str = Field(examples=["stub"])
+    available: bool = Field(description="false - работает заглушка (нет ключа или модели)")
+    provider: str = Field(
+        description="Хост LLM_BASE_URL; stub - если LLM недоступна", examples=["stub"]
+    )
 
 
 class Health(BaseModel):
