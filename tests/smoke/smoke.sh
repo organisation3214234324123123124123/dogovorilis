@@ -64,8 +64,9 @@ req GET "$API/auth/me" ""
 expect "без входа /auth/me -> 401" 401 '.code == "UNAUTHORIZED"'
 
 req POST "$API/auth/login" "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}"
-expect "вход" 200
-grep -q 'access_token' "$JAR" || fail "вход не поставил cookie access_token"
+expect "вход: тело — User без токена" 200 '.email != null and (has("access_token") | not) and (has("token") | not)'
+grep -qE '[[:space:]]session[[:space:]]' "$JAR" || fail "вход не поставил cookie session"
+grep -qE '[[:space:]]access_token[[:space:]]' "$JAR" && fail "вход поставил устаревшую cookie access_token"
 
 req GET "$API/auth/me" ""
 expect "/auth/me с cookie" 200 ".email == \"$EMAIL\""
@@ -160,7 +161,7 @@ JAR="$PJAR"
 req GET "$API/items/$ITEM_ID" ""
 expect "у ведущего статус пункта сменился" 200 '.status == "accepted"'
 
-# --- 5. Демо-пользователь (entrypoint backend грузит демо-данные при DEMO_DATA=1)
+# --- демо-пользователь (демо-данные загружает entrypoint, см. compose.override.yaml) ---
 DEMO_JAR_BACKUP="$JAR"
 JAR="$TMP/demo-cookies.txt"
 req POST "$API/auth/login" '{"email":"host@example.com","password":"demo1234"}'
