@@ -233,9 +233,9 @@ def test_health_has_all_sections(client: TestClient) -> None:
 
 
 @pytest.mark.fr("NFR-11")
-def test_health_all_ok_when_dependencies_work(client: TestClient) -> None:
-    body = health(client).json()
-    assert (body["status"], body["db"]) == ("ok", "ok")
+def test_health_db_is_ok_when_database_works(client: TestClient) -> None:
+    resp = health(client)
+    assert (resp.status_code, resp.json()["db"]) == (200, "ok")
 
 
 @pytest.mark.fr("NFR-11")
@@ -297,7 +297,7 @@ def test_health_is_503_when_database_is_down(
     assert resp.status_code == 503
     body = resp.json()
     assert body["db"] == "down"
-    assert body["status"] in ("degraded", "down")
+    assert body["status"] == "down"
     assert {"email_queue", "llm", "worker_last_run_at"} <= set(body)
 
 

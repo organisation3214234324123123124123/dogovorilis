@@ -336,7 +336,7 @@ components:
       title: HTTPValidationError
       type: object
     Health:
-      description: Состояние сервиса; при недоступной БД ручка отвечает 503 (NFR-11).
+      description: 'NFR-11. 200: ok или degraded; 503: БД или Redis недоступны (status=down).'
       properties:
         db:
           enum:
@@ -366,7 +366,8 @@ components:
           - format: date-time
             type: string
           - type: 'null'
-          description: Когда воркер последний раз отправил письмо; null - ещё не отправлял
+          description: Последний запуск воркера (с письмами или без); null - не запускался
+            или Redis недоступен
           title: Worker Last Run At
       required:
       - status
@@ -374,6 +375,7 @@ components:
       - db
       - email_queue
       - llm
+      - worker_last_run_at
       title: Health
       type: object
     ItemAction:
@@ -2758,7 +2760,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Health'
-          description: База недоступна (db=down)
+          description: БД или Redis недоступны (status=down)
       summary: Проба живости
       tags:
       - health

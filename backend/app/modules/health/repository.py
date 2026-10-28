@@ -19,7 +19,3 @@ def email_queue(db: Session, now: datetime) -> tuple[int, int, datetime | None]:
         )
     ).one()
     return row[0], row[1], row[2]
-
-
-def last_mail_sent_at(db: Session) -> datetime | None:
-    return db.scalar(select(func.max(Notification.sent_at)))

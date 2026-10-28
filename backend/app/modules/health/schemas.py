@@ -16,7 +16,7 @@ class LlmHealth(BaseModel):
 
 
 class Health(BaseModel):
-    """Состояние сервиса; при недоступной БД ручка отвечает 503 (NFR-11)."""
+    """NFR-11. 200: ok или degraded; 503: БД или Redis недоступны (status=down)."""
 
     status: Literal["ok", "degraded", "down"]
     version: str = Field(description="Версия бэка: фронт сверяет её со своей", examples=["dev"])
@@ -24,5 +24,8 @@ class Health(BaseModel):
     email_queue: EmailQueueHealth
     llm: LlmHealth
     worker_last_run_at: datetime | None = Field(
-        None, description="Когда воркер последний раз отправил письмо; null - ещё не отправлял"
+        description=(
+            "Последний запуск воркера (с письмами или без); "
+            "null - не запускался или Redis недоступен"
+        )
     )
