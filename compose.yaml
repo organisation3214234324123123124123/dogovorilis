@@ -23,8 +23,9 @@ x-backend: &backend
     APP_VERSION: ${APP_VERSION:-dev}
     DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leaderhelp}:${POSTGRES_PASSWORD:-leaderhelp}@db:5432/${POSTGRES_DB:-leaderhelp}
     REDIS_URL: redis://redis:6379/0
-    # Демо-данные для локального показа; на сервере DEMO_DATA=0.
-    DEMO_DATA: ${DEMO_DATA:-1}
+    # DEV_MODE и DEMO_DATA по умолчанию пустые, локально их включает compose.override.yaml.
+    DEMO_DATA: ${DEMO_DATA:-}
+    DEMO_TEAM_EMAILS: ${DEMO_TEAM_EMAILS:-}
   depends_on:
     db:
       condition: service_healthy
