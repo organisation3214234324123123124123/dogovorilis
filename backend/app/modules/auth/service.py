@@ -36,7 +36,7 @@ LOGIN_ATTEMPT_TTL = timedelta(minutes=30)
 PASSWORD_RESET_PER_HOUR = 3
 
 
-def login(db: Session, body: LoginRequest) -> TokenRead:
+def login(db: Session, body: LoginRequest) -> User:
     now = datetime.now(UTC)
     repository.lock_email(db, body.email)
     _check_not_locked(db, body.email, now)
@@ -46,6 +46,11 @@ def login(db: Session, body: LoginRequest) -> TokenRead:
         # keep_changes: get_db сохраняет запись о неудаче, хотя запрос завершается 401 (FR-02)
         raise Unauthorized("Неверный e-mail или пароль", keep_changes=True)
     repository.clear_failed_logins(db, body.email)
+    return user
+
+
+def issue_token(user: User) -> TokenRead:
+    """Для кнопки Authorize в Swagger; SPA ходит по cookie `session`."""
     return TokenRead(
         access_token=create_access_token(user.id),
         expires_in=SESSION_TTL_SECONDS,

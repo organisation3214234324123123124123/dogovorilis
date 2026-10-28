@@ -42,7 +42,7 @@ class LoginRequest(BaseModel):
 
 
 class TokenRead(BaseModel):
-    """Ответ на вход. Тот же JWT ставится в httpOnly-cookie `access_token`."""
+    """Ответ `/auth/token` (Swagger); тот же JWT ставится в cookie `session`."""
 
     access_token: str = Field(description="JWT для заголовка Authorization: Bearer")
     token_type: Literal["bearer"] = "bearer"

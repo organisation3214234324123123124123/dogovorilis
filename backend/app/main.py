@@ -16,9 +16,8 @@ from app.modules.llm.router import router as llm_router
 from app.modules.series.router import router as series_router
 
 DESCRIPTION = """
-Контракт этапов 1–2.
-
-**Как попробовать** (локальный запуск с демо-данными, `DEMO_DATA=1`):
+**Как попробовать** (локально `docker compose up`: демо-данные и вход через Authorize
+включает `compose.override.yaml`, `DEV_MODE=1`):
 `POST /api/v1/auth/login` или кнопка **Authorize** (username `host@example.com`,
 password `demo1234`), затем `GET /api/v1/series`.
 
