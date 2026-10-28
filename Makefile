@@ -51,7 +51,7 @@ migrations-check:
 
 migration:
 	@test -n "$(m)" || { echo 'usage: make migration m="message"'; exit 1; }
-	cd backend && uv run alembic revision --autogenerate -m "$(m)"
+	cd backend && DEV_MODE=1 uv run alembic revision --autogenerate -m "$(m)"
 
 schema:
 	$(TO) 600 bash db/dump_schema.sh
@@ -64,10 +64,10 @@ check: lint test migrations-check
 	git diff --exit-code -- docs/api/openapi.yaml
 
 demo:
-	cd backend && $(TO) 120 uv run python -m app.demo load $(DEMO_SET)
+	cd backend && DEV_MODE=1 $(TO) 120 uv run python -m app.demo load $(DEMO_SET)
 
 demo-reset:
-	cd backend && $(TO) 120 uv run python -m app.demo reset $(DEMO_SET)
+	cd backend && DEV_MODE=1 $(TO) 120 uv run python -m app.demo reset $(DEMO_SET)
 
 test-db:
 	$(TO) 240 ./scripts/test-db.sh
