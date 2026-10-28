@@ -1,9 +1,13 @@
+import os
 import sys
 from pathlib import Path
 
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+# Контракт описывает и служебный /auth/token, он есть только в режиме разработки.
+os.environ.setdefault("DEV_MODE", "1")
 
 from app.main import app
 

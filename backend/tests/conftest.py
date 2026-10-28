@@ -7,6 +7,7 @@ import pytest
 
 # Переменные окружения по умолчанию задаются до импорта приложения.
 os.environ.pop("APP_VERSION", None)
+os.environ["DEV_MODE"] = "1"  # тесты идут в режиме разработки; боевой режим включают сами тесты
 os.environ.setdefault(
     "DATABASE_URL", "postgresql+psycopg://leaderhelp:leaderhelp@localhost:5432/leaderhelp_test"
 )

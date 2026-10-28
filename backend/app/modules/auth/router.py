@@ -6,8 +6,13 @@ from pydantic import ValidationError
 
 from app.core.config import get_settings
 from app.core.db import SessionDep
-from app.core.errors import ValidationFailed, errors
-from app.core.security import SESSION_COOKIE, SESSION_TTL_SECONDS, CurrentUser
+from app.core.errors import NotFound, ValidationFailed, errors
+from app.core.security import (
+    SESSION_COOKIE,
+    SESSION_TTL_SECONDS,
+    CurrentUser,
+    create_access_token,
+)
 from app.modules.auth import service
 from app.modules.auth.schemas import (
     LoginRequest,
@@ -28,7 +33,7 @@ def _set_session(response: Response, token: str) -> None:
         max_age=SESSION_TTL_SECONDS,
         httponly=True,
         samesite="lax",
-        secure=get_settings().app_version != "dev",
+        secure=not get_settings().is_dev,
         path="/",
     )
 
@@ -36,33 +41,39 @@ def _set_session(response: Response, token: str) -> None:
 @router.post(
     "/login",
     summary="Вход ведущего",
-    description="FR-01. Ставит httpOnly-cookie `access_token` (JWT, 7 дней) и возвращает тот же "
-    "токен в теле. Демо: host@example.com / demo1234.",
-    response_model=TokenRead,
+    description="Ставит httpOnly-cookie `session` (JWT, 7 дней), в теле - пользователь, "
+    "токена в теле нет. Демо (при DEMO_DATA=1): host@example.com / demo1234.",
+    response_model=UserRead,
     responses=errors(401, 422, 429, notes={401: "Неверный e-mail или пароль (UNAUTHORIZED)"}),
 )
-def login(body: LoginRequest, db: SessionDep, response: Response) -> TokenRead:
-    token = service.login(db, body)
-    _set_session(response, token.access_token)
-    return token
+def login(body: LoginRequest, db: SessionDep, response: Response) -> UserRead:
+    user = service.login(db, body)
+    _set_session(response, create_access_token(user.id))
+    return UserRead.model_validate(user)
 
 
 @router.post(
     "/token",
     summary="Вход через форму OAuth2",
-    description="Для кнопки Swagger «Authorize» и скриптов: поле `username` — e-mail. "
-    "Остальное как в `/auth/login`.",
+    description="Для кнопки Swagger «Authorize» и скриптов: поле `username` - e-mail. "
+    "Отдаёт Bearer-токен в теле и ставит cookie `session`, как `/auth/login`. "
+    "Только при DEV_MODE=1, иначе 404.",
     response_model=TokenRead,
-    responses=errors(401, 422, 429, notes={401: "Неверный e-mail или пароль (UNAUTHORIZED)"}),
+    responses=errors(401, 404, 422, 429, notes={401: "Неверный e-mail или пароль (UNAUTHORIZED)"}),
 )
 def login_form(
     form: Annotated[OAuth2PasswordRequestForm, Depends()], db: SessionDep, response: Response
 ) -> TokenRead:
+    if not get_settings().is_dev:
+        raise NotFound()
     try:
         body = LoginRequest(email=form.username, password=form.password)
     except ValidationError as exc:
         raise ValidationFailed("Нужны e-mail и пароль") from exc
-    return login(body, db, response)
+    user = service.login(db, body)
+    token = service.issue_token(user)
+    _set_session(response, token.access_token)
+    return token
 
 
 @router.post(

@@ -13,6 +13,7 @@ import yaml
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.db import SessionLocal, get_engine
 from app.core.security import hash_password
 from app.models import (
@@ -46,6 +47,9 @@ KEEP_ON_CLEAR = {LlmPrompt.__tablename__}
 logger = logging.getLogger(__name__)
 
 Refs = dict[str, Any]
+
+# Порядок фиксирован, чтобы наборы с разным составом давали одному ключу один адрес команды.
+TEAM_SLOTS = ("ivan", "anna", "oleg", "kate")
 
 
 def read_set(name: str) -> dict | None:
@@ -102,18 +106,25 @@ def _load_organizations(db: Session, rows: list[dict], refs: Refs) -> int:
     return len(rows)
 
 
+def _person_email(row: dict) -> str:
+    team = get_settings().demo_team_email_list
+    slot = TEAM_SLOTS.index(row["ref"]) if row["ref"] in TEAM_SLOTS else len(team)
+    return team[slot] if slot < len(team) else row["email"]
+
+
 def _load_persons(db: Session, rows: list[dict], refs: Refs) -> int:
     for row in rows:
+        email = _person_email(row)
         owner = refs[row["owner"]]
         person = db.scalar(
-            select(Person).where(Person.owner_user_id == owner.id, Person.email == row["email"])
+            select(Person).where(Person.owner_user_id == owner.id, Person.email == email)
         )
         if person is None:
             person = Person(
                 owner_user_id=owner.id,
                 organization_id=refs[row["organization"]].id,
                 full_name=row["full_name"],
-                email=row["email"],
+                email=email,
             )
             db.add(person)
             db.flush()
@@ -360,6 +371,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--if-empty", action="store_true", help="load only into an empty database")
     args = parser.parse_args(argv)
 
+    if not get_settings().is_dev:
+        print("демо-команды доступны только при DEV_MODE=1", file=sys.stderr)
+        return 1
+
     try:
         data = read_set(args.name)
     except (ValueError, yaml.YAMLError) as exc:
@@ -369,6 +384,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"unknown demo set '{args.name}'", file=sys.stderr)
         return 2
     if args.if_empty and args.command == "load":
+        settings = get_settings()
+        if settings.demo_data != "1":
+            print("demo: DEMO_DATA != 1, skipped")
+            return 0
         with SessionLocal(bind=get_engine()) as db:
             if not is_empty(db):
                 print("demo: database has data, skipped")

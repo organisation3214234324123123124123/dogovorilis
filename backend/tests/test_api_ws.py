@@ -24,7 +24,14 @@ def test_ws_without_cookie_closes_4401(client: TestClient, world: World) -> None
 
 
 def test_ws_with_garbage_cookie_closes_4401(client: TestClient, world: World) -> None:
-    client.cookies.set("access_token", "garbage")
+    client.cookies.set("session", "garbage")
+    assert connect_code(client, world.meeting.id) == 4401
+
+
+def test_ws_with_old_access_token_cookie_closes_4401(client: TestClient, world: World) -> None:
+    from app.core.security import create_access_token
+
+    client.cookies.set("access_token", create_access_token(world.user.id))
     assert connect_code(client, world.meeting.id) == 4401
 
 

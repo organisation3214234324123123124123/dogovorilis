@@ -2175,7 +2175,7 @@ components:
       title: SummaryText
       type: object
     TokenRead:
-      description: Ответ на вход. Тот же JWT ставится в httpOnly-cookie `access_token`.
+      description: Ответ `/auth/token` (Swagger); тот же JWT ставится в cookie `session`.
       properties:
         access_token:
           description: 'JWT для заголовка Authorization: Bearer'
@@ -2263,7 +2263,7 @@ components:
   securitySchemes:
     APIKeyCookie:
       in: cookie
-      name: access_token
+      name: session
       type: apiKey
     AdminToken:
       description: 'Служебный доступ: значение ADMIN_TOKEN. Если оно пусто, /admin
@@ -2280,10 +2280,9 @@ components:
 info:
   description: '
 
-    Контракт этапов 1–2.
+    **Как попробовать** (локально `docker compose up`: демо-данные и вход через Authorize
 
-
-    **Как попробовать** (локальный запуск с демо-данными, `DEMO_DATA=1`):
+    включает `compose.override.yaml`, `DEV_MODE=1`):
 
     `POST /api/v1/auth/login` или кнопка **Authorize** (username `host@example.com`,
 
@@ -2528,8 +2527,8 @@ paths:
       - meetings
   /api/v1/auth/login:
     post:
-      description: 'FR-01. Ставит httpOnly-cookie `access_token` (JWT, 7 дней) и возвращает
-        тот же токен в теле. Демо: host@example.com / demo1234.'
+      description: 'Ставит httpOnly-cookie `session` (JWT, 7 дней), в теле - пользователь,
+        токена в теле нет. Демо (при DEMO_DATA=1): host@example.com / demo1234.'
       operationId: login_api_v1_auth_login_post
       requestBody:
         content:
@@ -2542,7 +2541,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TokenRead'
+                $ref: '#/components/schemas/UserRead'
           description: Successful Response
         '401':
           content:
@@ -2696,8 +2695,9 @@ paths:
       - auth
   /api/v1/auth/token:
     post:
-      description: 'Для кнопки Swagger «Authorize» и скриптов: поле `username` — e-mail.
-        Остальное как в `/auth/login`.'
+      description: 'Для кнопки Swagger «Authorize» и скриптов: поле `username` - e-mail.
+        Отдаёт Bearer-токен в теле и ставит cookie `session`, как `/auth/login`. Только
+        при DEV_MODE=1, иначе 404.'
       operationId: login_form_api_v1_auth_token_post
       requestBody:
         content:
@@ -2719,6 +2719,13 @@ paths:
                 $ref: '#/components/schemas/Problem'
             application/problem+json: {}
           description: Неверный e-mail или пароль (UNAUTHORIZED)
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Объекта нет или он чужой
         '422':
           content:
             application/json:

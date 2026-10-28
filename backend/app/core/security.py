@@ -18,7 +18,7 @@ from app.modules.auth.models import User
 password_hash = PasswordHash.recommended()
 
 ALGORITHM = "HS256"
-SESSION_COOKIE = "access_token"
+SESSION_COOKIE = "session"
 SESSION_TTL_SECONDS = 7 * 24 * 3600
 
 
@@ -56,7 +56,7 @@ def token_expiry(token: str) -> int | None:
         return None
 
 
-# Cookie for the SPA (FR-01), bearer for Swagger "Authorize" and scripts.
+# Cookie - для SPA (FR-01); Bearer - для кнопки Authorize в Swagger, только при DEV_MODE.
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token", auto_error=False)
 cookie_scheme = APIKeyCookie(name=SESSION_COOKIE, auto_error=False)
 
@@ -66,7 +66,7 @@ def get_current_user(
     bearer: Annotated[str | None, Depends(oauth2_scheme)] = None,
     db: Annotated[Session | None, Depends(get_db, scope="function")] = None,
 ) -> User:
-    token = cookie or bearer
+    token = cookie or (bearer if get_settings().is_dev else None)
     user_id = decode_access_token(token) if token else None
     user = db.get(User, user_id) if user_id and db is not None else None
     if user is None:
