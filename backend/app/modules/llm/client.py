@@ -132,11 +132,16 @@ class StubLLMClient:
         return LLMResponse(json.dumps(content), None, None)
 
 
+def llm_configured() -> bool:
+    """Реальный клиент нужен, только если заданы и ключ, и модель."""
+    settings = get_settings()
+    return bool(settings.llm_api_key) and bool(settings.llm_model.strip())
+
+
 def get_llm_client() -> LLMClient:
     settings = get_settings()
-    if not settings.llm_api_key:
-        return StubLLMClient()
-    if not settings.llm_model.strip():
-        logger.warning("LLM_API_KEY задан, но LLM_MODEL пуст: используется заглушка")
+    if not llm_configured():
+        if settings.llm_api_key:
+            logger.warning("LLM_API_KEY задан, но LLM_MODEL пуст: используется заглушка")
         return StubLLMClient()
     return OpenAICompatClient(settings.llm_base_url, settings.llm_api_key, settings.llm_model)

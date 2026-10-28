@@ -49,7 +49,8 @@ PASS="smoke-pass-$STAMP"
 
 # --- здоровье ---
 req GET "$API/health" ""
-expect "health" 200 '.status == "ok"'
+# NFR-11: при заглушке LLM (ключа в CI нет) сервис жив, но деградирован
+expect "health" 200 '.status == "degraded" and .db == "ok" and .llm.provider == "stub"'
 
 # --- ведущий: регистрация и вход ---
 req POST "$API/auth/register" \

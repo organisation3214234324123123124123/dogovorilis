@@ -12,10 +12,10 @@ router = APIRouter(tags=["health"])
     "/health",
     response_model=Health,
     summary="Проба живости",
-    responses={503: {"model": Health, "description": "База недоступна (db=down)"}},
+    responses={503: {"model": Health, "description": "БД или Redis недоступны (status=down)"}},
 )
 def health(db: SessionDep) -> Health | JSONResponse:
     result = service.check(db)
-    if result.db == "down":
+    if result.status == "down":
         return JSONResponse(result.model_dump(mode="json"), status_code=503)
     return result

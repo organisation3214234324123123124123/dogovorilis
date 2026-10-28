@@ -11,12 +11,14 @@ class EmailQueueHealth(BaseModel):
 
 
 class LlmHealth(BaseModel):
-    available: bool = Field(description="false - работает заглушка (ключа нет)")
-    provider: str = Field(examples=["stub"])
+    available: bool = Field(description="false - работает заглушка (нет ключа или модели)")
+    provider: str = Field(
+        description="Хост LLM_BASE_URL; stub - если LLM недоступна", examples=["stub"]
+    )
 
 
 class Health(BaseModel):
-    """Состояние сервиса; при недоступной БД ручка отвечает 503 (NFR-11)."""
+    """NFR-11. 200: ok или degraded; 503: БД или Redis недоступны (status=down)."""
 
     status: Literal["ok", "degraded", "down"]
     version: str = Field(description="Версия бэка: фронт сверяет её со своей", examples=["dev"])
@@ -24,5 +26,8 @@ class Health(BaseModel):
     email_queue: EmailQueueHealth
     llm: LlmHealth
     worker_last_run_at: datetime | None = Field(
-        None, description="Когда воркер последний раз отправил письмо; null - ещё не отправлял"
+        description=(
+            "Последний запуск воркера (с письмами или без); "
+            "null - не запускался или Redis недоступен"
+        )
     )
