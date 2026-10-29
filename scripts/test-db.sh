@@ -13,11 +13,8 @@ wait_pg() {
 
 if docker info >/dev/null 2>&1; then
   echo "test-db: docker"
-  timeout 180 docker compose -f compose.yaml -f infra/docker-compose.test.yml up -d db redis || exit 1
-  for _ in $(seq 1 30); do
-    docker compose -f compose.yaml exec -T db pg_isready -U leaderhelp >/dev/null 2>&1 && break
-    sleep 1
-  done
+  # --wait ждёт healthcheck у db и redis
+  timeout 180 docker compose -f compose.yaml -f infra/docker-compose.test.yml up -d --wait db redis || exit 1
   docker compose -f compose.yaml exec -T db \
     psql -U leaderhelp -d leaderhelp -tc "SELECT 1 FROM pg_database WHERE datname='leaderhelp_test'" | grep -q 1 \
     || docker compose -f compose.yaml exec -T db createdb -U leaderhelp leaderhelp_test
