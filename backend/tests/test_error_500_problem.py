@@ -105,3 +105,57 @@ def test_unhandled_error_log_masks_link_token(request_logs: list[logging.LogReco
     assert len(unhandled) == 1
     assert unhandled[0].path.startswith("/api/v1/p/***")
     assert "sometoken123" not in unhandled[0].path
+
+
+def test_500_response_has_request_id_header() -> None:
+    app = create_app()
+
+    def broken() -> None:
+        raise RuntimeError(SECRET)
+
+    app.add_api_route("/api/v1/_boom", broken, methods=["GET"])
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/api/v1/_boom", headers={"X-Request-ID": "req-500-abc"})
+    assert response.status_code == 500
+    assert response.headers.get("X-Request-ID") == "req-500-abc"
+
+
+def test_500_response_gets_generated_request_id() -> None:
+    app = create_app()
+
+    def broken() -> None:
+        raise RuntimeError(SECRET)
+
+    app.add_api_route("/api/v1/_boom", broken, methods=["GET"])
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/api/v1/_boom")
+    assert response.headers.get("X-Request-ID")
+
+
+def test_500_response_has_cors_headers() -> None:
+    app = create_app()
+
+    def broken() -> None:
+        raise RuntimeError(SECRET)
+
+    app.add_api_route("/api/v1/_boom", broken, methods=["GET"])
+    origin = "http://localhost:5173"
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/api/v1/_boom", headers={"Origin": origin})
+    assert response.status_code == 500
+    assert response.headers.get("access-control-allow-origin") == origin
+
+
+def test_500_header_request_id_matches_log(request_logs: list[logging.LogRecord]) -> None:
+    app = create_app()
+
+    def broken() -> None:
+        raise RuntimeError(SECRET)
+
+    app.add_api_route("/api/v1/_boom", broken, methods=["GET"])
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/api/v1/_boom", headers={"X-Request-ID": "req-log-1"})
+    assert response.headers.get("X-Request-ID") == "req-log-1"
+    unhandled = [r for r in request_logs if r.getMessage() == "unhandled error"]
+    assert unhandled
+    assert getattr(unhandled[0], "request_id", None) == "req-log-1"

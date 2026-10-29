@@ -84,7 +84,7 @@ def test_second_active_meeting_is_conflict(
     make_meeting(world.db, world.series, status=status)
     resp = start(authed, world.series)
     assert resp.status_code == 409
-    assert resp.json()["code"] == "MEETING_ALREADY_LIVE"
+    assert resp.json()["code"] == "MEETING_IN_PROGRESS"
 
 
 def test_archived_series_cannot_start_meeting(authed: TestClient, world: World) -> None:
@@ -121,4 +121,4 @@ def test_start_race_on_unique_index_is_conflict(
     monkeypatch.setattr(repository, "active_meetings", lambda *a, **k: [])
     resp = start(authed, world.series)
     assert resp.status_code == 409
-    assert resp.json()["code"] == "MEETING_ALREADY_LIVE"
+    assert resp.json()["code"] == "MEETING_IN_PROGRESS"

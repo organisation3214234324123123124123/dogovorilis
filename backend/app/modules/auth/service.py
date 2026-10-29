@@ -93,7 +93,9 @@ def purge_login_attempts(db: Session, now: datetime) -> int:
 
 def register(db: Session, body: RegisterRequest) -> User:
     if not body.pd_consent:
-        raise ValidationFailed("Нужно согласие на обработку персональных данных")
+        raise ValidationFailed(
+            "Нужно согласие на обработку персональных данных", field="pd_consent"
+        )
     if repository.get_by_email(db, body.email):
         raise Conflict("E-mail уже занят", code="EMAIL_TAKEN")
     user = repository.add(

@@ -46,6 +46,18 @@ def test_send_moves_meeting_to_sent(host, sc: Scenario) -> None:
 
 
 @pytest.mark.fr("FR-28")
+def test_gaps_open_problem_carries_open_gaps(host, sc: Scenario) -> None:
+    make_gap(sc.world.db, sc.pending)
+    make_gap(sc.world.db, sc.unassigned)
+    refused = send(host, sc.world, confirm=False, expect=None)
+    assert refused.status_code == 422
+    body = refused.json()
+    assert body["code"] == "GAPS_OPEN"
+    assert body["open_gaps"] == 2
+    assert "open_gaps_count" not in body
+
+
+@pytest.mark.fr("FR-28")
 def test_send_with_open_gaps_requires_confirmation(host, sc: Scenario) -> None:
     make_gap(sc.world.db, sc.pending)
     make_gap(sc.world.db, sc.unassigned)

@@ -21,9 +21,12 @@ class AppError(Exception):
         detail: str | None = None,
         code: str | None = None,
         keep_changes: bool | None = None,
+        field: str | None = None,
         **extra: object,
     ) -> None:
         super().__init__(detail)
+        if field is not None:
+            extra["errors"] = [{"field": field, "message": detail or ""}]
         if keep_changes is not None:
             self.keep_changes = keep_changes
         self.detail = detail
@@ -63,12 +66,6 @@ class Gone(AppError):
     code = "LINK_EXPIRED"
 
 
-class PreconditionRequired(AppError):
-    status = 428
-    title = "Precondition Required"
-    code = "PRECONDITION_REQUIRED"
-
-
 class ValidationFailed(AppError):
     status = 422
     title = "Unprocessable Entity"
@@ -85,15 +82,9 @@ class RateLimited(AppError):
         self.headers = {"Retry-After": str(max(1, retry_after))}
 
 
-class NotImplementedYet(AppError):
-    """Не реализовано; в detail - номер требования."""
-
-    status = 501
-    title = "Not Implemented"
-    code = "NOT_IMPLEMENTED"
-
-    def __init__(self, fr: str) -> None:
-        super().__init__(f"Ещё не реализовано ({fr})")
+class FieldError(BaseModel):
+    field: str = Field(examples=["due_date"])
+    message: str = Field(examples=["Срок не может быть в прошлом"])
 
 
 class Problem(BaseModel):
@@ -107,7 +98,12 @@ class Problem(BaseModel):
         examples=["INVALID_TRANSITION"],
     )
     detail: str | None = Field(None, examples=["Переход из done в pending запрещён"])
-    instance: str | None = Field(None, examples=["/api/v1/items/3f0c.../actions"])
+    errors: list[FieldError] | None = Field(
+        None, description="Ошибки по полям, только для 422 VALIDATION_ERROR и ошибок с полем"
+    )
+    open_gaps: int | None = Field(
+        None, description="Только для GAPS_OPEN при рассылке", examples=[2]
+    )
 
 
 _ERROR_TEXT = {
@@ -117,15 +113,11 @@ _ERROR_TEXT = {
     409: "Конфликт состояния; конкретная причина в поле code",
     410: "Ссылка истекла или отозвана",
     422: "Неверные данные; причина в поле code",
-    428: "Нет заголовка If-Match",
     429: "Превышен лимит, см. Retry-After",
-    501: "Не реализовано (NOT_IMPLEMENTED)",
 }
 
 
-ADMIN_403 = {
-    403: "Нет или неверный X-Admin-Token (ADMIN_FORBIDDEN); ADMIN_TOKEN не задан (ADMIN_DISABLED)"
-}
+ADMIN_401 = {401: "Нет или неверный X-Admin-Token, либо ADMIN_TOKEN не задан"}
 
 
 def errors(*statuses: int, notes: dict[int, str] | None = None) -> dict[int | str, dict]:
@@ -139,6 +131,23 @@ def errors(*statuses: int, notes: dict[int, str] | None = None) -> dict[int | st
         }
         for s in dict.fromkeys((*statuses, *notes))
     }
+
+
+def problem_for_422(schema: dict) -> None:
+    """FastAPI описывает 422 как HTTPValidationError, а обработчик отдаёт Problem."""
+    problem_ref = {"$ref": "#/components/schemas/Problem"}
+    for path_item in schema.get("paths", {}).values():
+        for op in path_item.values():
+            responses = op.get("responses") if isinstance(op, dict) else None
+            if responses and "422" in responses:
+                old = responses["422"].get("description", "")
+                responses["422"] = {
+                    "description": old if old != "Validation Error" else _ERROR_TEXT[422],
+                    "content": {PROBLEM_JSON: {"schema": problem_ref}},
+                }
+    schemas = schema.get("components", {}).get("schemas", {})
+    schemas.pop("HTTPValidationError", None)
+    schemas.pop("ValidationError", None)
 
 
 _HTTP_CODES = {404: "NOT_FOUND", 422: "VALIDATION_ERROR"}
@@ -158,7 +167,6 @@ def problem(
         "status": status,
         "code": code or _HTTP_CODES.get(status, HTTPStatus(status).name),
         "detail": detail,
-        "instance": request.url.path,
         **(extra or {}),
     }
     return JSONResponse(body, status_code=status, media_type=PROBLEM_JSON)
@@ -180,13 +188,16 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def on_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
-        detail = "; ".join(
-            f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()
+        errs = [
+            {
+                "field": ".".join(
+                    str(p) for p in (e["loc"][1:] if e["loc"][0] == "body" else e["loc"])
+                ),
+                "message": e["msg"],
+            }
+            for e in exc.errors()
+        ]
+        detail = "; ".join(f"{e['field']}: {e['message']}" for e in errs)
+        return problem(
+            request, 422, "Unprocessable Entity", detail, "VALIDATION_ERROR", {"errors": errs}
         )
-        return problem(request, 422, "Unprocessable Entity", detail, "VALIDATION_ERROR")
-
-    @app.exception_handler(Exception)
-    async def on_unhandled_error(request: Request, exc: Exception) -> JSONResponse:
-        # Вызывается из ServerErrorMiddleware (внешний слой): RequestLogMiddleware уже записал
-        # "unhandled error". Текста исключения в теле нет, дальше Starlette пробросит его сам.
-        return problem(request, 500, "Internal Server Error", None, "INTERNAL_ERROR")

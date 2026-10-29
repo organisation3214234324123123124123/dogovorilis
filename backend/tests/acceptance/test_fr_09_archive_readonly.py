@@ -160,7 +160,7 @@ def test_archive_during_live_meeting_rejected(authed: TestClient, world: World) 
     world.db.flush()
     resp = authed.post(f"{API}/series/{world.series.id}/archive")
     assert resp.status_code == 409
-    assert resp.json()["code"] == "MEETING_ALREADY_LIVE"
+    assert resp.json()["code"] == "MEETING_IN_PROGRESS"
     assert reload(world, world.series).status == SeriesStatus.ACTIVE
 
 

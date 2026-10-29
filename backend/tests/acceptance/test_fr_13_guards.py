@@ -40,11 +40,11 @@ def make_item_for(world: World, meeting) -> Item:
     return make_item(world.db, meeting)
 
 
-def test_missing_if_match_is_428(authed: TestClient, world: World, draft) -> None:
+def test_missing_if_match_is_422(authed: TestClient, world: World, draft) -> None:
     _, item = draft
     resp = patch(authed, item, {"what": "Новое"}, headers={})
-    assert resp.status_code == 428
-    assert problem_code(resp) == "PRECONDITION_REQUIRED"
+    assert resp.status_code == 422
+    assert problem_code(resp) == "VALIDATION_ERROR"
 
 
 @pytest.mark.parametrize(
@@ -72,3 +72,10 @@ def test_foreign_series_item_is_404(authed: TestClient, world: World) -> None:
     meeting = make_meeting(world.db, series)
     item = make_item_for(world, meeting)
     assert patch(authed, item, {"what": "Чужое"}).status_code == 404
+
+
+def test_missing_if_match_never_returns_428(authed: TestClient, world: World, draft) -> None:
+    _, item = draft
+    resp = patch(authed, item, {"what": "Новое"}, headers={})
+    assert resp.status_code != 428
+    assert "PRECONDITION_REQUIRED" not in resp.text

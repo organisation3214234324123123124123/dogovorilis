@@ -79,7 +79,7 @@ def get_item(item_id: uuid.UUID, db: SessionDep, user: CurrentUser, response: Re
     "исполнителя меняют через actions/reassign. Нужен If-Match. Смена срока после рассылки "
     "увеличивает reschedule_count и отправляет исполнителю письмо ITEM_CHANGED.",
     response_model=ItemRead,
-    responses=errors(401, 404, 409, 422, 428, notes=_VERSION_409),
+    responses=errors(401, 404, 409, 422, notes=_VERSION_409),
 )
 def update_item(
     item_id: uuid.UUID,
@@ -97,7 +97,7 @@ def update_item(
     description="Только до рассылки, вместе с пробелами. "
     "После рассылки - 409, пункт можно только «Снять».",
     status_code=204,
-    responses=errors(401, 404, 409, 428, notes=_VERSION_409),
+    responses=errors(401, 404, 409, notes=_VERSION_409),
 )
 def delete_item(
     item_id: uuid.UUID, db: SessionDep, user: CurrentUser, if_match: IfMatch = None
@@ -142,7 +142,6 @@ def dismiss_gap(
         404,
         409,
         422,
-        428,
         notes={
             409: "VERSION_CONFLICT; встреча уже разослана (ALREADY_SENT); "
             "серия в архиве (SERIES_ARCHIVED)",
@@ -166,7 +165,7 @@ def accept_in_meeting(
     description="done, reschedule (новый срок), cancel («Снять»), reassign (из pending, accepted "
     "или disputed в pending у нового исполнителя). Нужен If-Match.",
     response_model=ItemRead,
-    responses=errors(401, 404, 409, 422, 428, notes=_VERSION_409),
+    responses=errors(401, 404, 409, 422, notes=_VERSION_409),
 )
 def item_action(
     item_id: uuid.UUID,

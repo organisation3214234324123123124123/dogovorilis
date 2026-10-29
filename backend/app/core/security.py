@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.db import get_db
-from app.core.errors import Forbidden, Unauthorized
+from app.core.errors import Unauthorized, problem_for_422
 from app.modules.auth.models import User
 
 password_hash = PasswordHash.recommended()
@@ -87,10 +87,8 @@ admin_scheme = APIKeyHeader(
 
 def require_admin(token: Annotated[str | None, Depends(admin_scheme)] = None) -> None:
     expected = get_settings().admin_token
-    if not expected:
-        raise Forbidden("Служебный доступ выключен (ADMIN_TOKEN пуст)", code="ADMIN_DISABLED")
-    if not token or not hmac.compare_digest(token.encode(), expected.encode()):
-        raise Forbidden("Нужен заголовок X-Admin-Token", code="ADMIN_FORBIDDEN")
+    if not expected or not token or not hmac.compare_digest(token.encode(), expected.encode()):
+        raise Unauthorized("Нужен заголовок X-Admin-Token")
 
 
 AdminAccess = Depends(require_admin)
@@ -112,6 +110,7 @@ def register_openapi_security(app: FastAPI) -> None:
                 schemes[scheme.scheme_name] = scheme.model.model_dump(
                     mode="json", by_alias=True, exclude_none=True
                 )
+            problem_for_422(schema)
             app.openapi_schema = schema
         return app.openapi_schema
 

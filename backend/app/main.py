@@ -64,6 +64,8 @@ def create_app() -> FastAPI:
         openapi_tags=TAGS,
         swagger_ui_parameters={"persistAuthorization": True},
     )
+    # CORS добавлен последним (внешний слой): ответ 500 тоже получит CORS-заголовки.
+    app.add_middleware(RequestLogMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -72,7 +74,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         expose_headers=["X-Request-ID"],
     )
-    app.add_middleware(RequestLogMiddleware)
     register_error_handlers(app)
     register_openapi_security(app)
     add_ws_schemas(app)
