@@ -6,6 +6,7 @@ from app.modules.auth.models import LoginAttempt, PasswordResetToken, User
 from app.modules.confirm.models import AccessLink, AccessLinkToken
 from app.modules.gaps.models import Gap
 from app.modules.items.models import Item, ItemComment, ItemEvent
+from app.modules.live.models import MeetingEvent
 from app.modules.llm.models import LlmCall, LlmPrompt
 from app.modules.notifications.models import Notification
 from app.modules.series.models import (
@@ -32,6 +33,7 @@ __all__ = [
     "LlmPrompt",
     "LoginAttempt",
     "Meeting",
+    "MeetingEvent",
     "MeetingParticipant",
     "Notification",
     "Organization",

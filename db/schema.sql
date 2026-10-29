@@ -489,6 +489,20 @@ CREATE TABLE public.login_attempts (
 
 
 --
+-- Name: meeting_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.meeting_events (
+    meeting_id uuid NOT NULL,
+    version bigint NOT NULL,
+    event character varying NOT NULL,
+    item_id uuid,
+    data jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: meeting_participants; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -514,6 +528,7 @@ CREATE TABLE public.meetings (
     closure_trigger public.closure_trigger,
     summary_sent_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    events_version bigint DEFAULT '0'::bigint NOT NULL,
     CONSTRAINT ck_meetings_planned_period CHECK ((planned_end > planned_start))
 );
 
@@ -731,6 +746,14 @@ ALTER TABLE ONLY public.llm_prompts
 
 ALTER TABLE ONLY public.login_attempts
     ADD CONSTRAINT pk_login_attempts PRIMARY KEY (id);
+
+
+--
+-- Name: meeting_events pk_meeting_events; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.meeting_events
+    ADD CONSTRAINT pk_meeting_events PRIMARY KEY (meeting_id, version);
 
 
 --
@@ -1266,6 +1289,14 @@ ALTER TABLE ONLY public.llm_calls
 
 ALTER TABLE ONLY public.llm_prompts
     ADD CONSTRAINT fk_llm_prompts_created_by_users FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: meeting_events fk_meeting_events_meeting_id_meetings; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.meeting_events
+    ADD CONSTRAINT fk_meeting_events_meeting_id_meetings FOREIGN KEY (meeting_id) REFERENCES public.meetings(id) ON DELETE CASCADE;
 
 
 --

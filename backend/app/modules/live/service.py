@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import datetime
 
 from sqlalchemy import event
 from sqlalchemy.orm import Session, SessionTransaction
@@ -7,7 +8,7 @@ from sqlalchemy.orm import Session, SessionTransaction
 from app.core.errors import Unauthorized
 from app.core.security import decode_access_token, token_expiry
 from app.modules.auth.models import User
-from app.modules.live import bus
+from app.modules.live import bus, repository
 from app.modules.series import service as series_service
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,10 @@ def publish(meeting_id: uuid.UUID, event: dict) -> None:
 def publish_after_commit(db: Session, meeting_id: uuid.UUID, event_: dict) -> None:
     """При откате кадр не уйдёт."""
     db.info.setdefault(OUTBOX, []).append((meeting_id, event_))
+
+
+def purge_old_events(db: Session, cutoff: datetime, limit: int) -> int:
+    return repository.delete_events_of_ended_before(db, cutoff, limit)
 
 
 @event.listens_for(Session, "after_commit")

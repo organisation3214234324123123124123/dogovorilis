@@ -48,7 +48,7 @@ sequenceDiagram
 Уточнение разбора через LLM (`enrich_item`) в этот путь пока не подключено. Страница исполнителя `/p/{token}` работает без входа: доступ по ссылке из письма, в базе только отпечаток токена.
 
 ## Модель данных
-17 таблиц SRS v3 и 3 служебные (`login_attempts`, `password_reset_tokens`, `access_link_tokens`). Модели лежат в `app/modules/<модуль>/models.py`, реестр для Alembic — `app/models.py`.
+17 таблиц SRS v3, 3 служебные (`login_attempts`, `password_reset_tokens`, `access_link_tokens`) и журнал событий живой панели `meeting_events` (FR-14). Модели лежат в `app/modules/<модуль>/models.py`, реестр для Alembic — `app/models.py`.
 
 ```mermaid
 erDiagram

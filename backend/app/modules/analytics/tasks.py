@@ -8,6 +8,7 @@ from app.core.db import SessionLocal, get_engine
 from app.modules.analytics import service
 from app.modules.confirm import service as confirm_service
 from app.modules.items import service as items_service
+from app.modules.live import service as live_service
 from app.modules.llm import service as llm_service
 from app.modules.notifications import service as notifications_service
 from app.modules.series import service as series_service
@@ -20,6 +21,7 @@ YEAR = timedelta(days=365)
 LINK_GRACE = timedelta(days=30)
 PAYLOAD_TTL = timedelta(days=90)
 ANALYTICS_TTL = timedelta(days=730)
+MEETING_EVENTS_TTL = timedelta(days=30)
 
 
 def _in_batches(step: Callable[[Session, int], int]) -> int:
@@ -47,6 +49,9 @@ def cleanup_retention() -> dict[str, int]:
         "events": lambda db, n: service.purge_old_events(db, now - ANALYTICS_TTL, n),
         "llm_calls": lambda db, n: llm_service.purge_old_calls(db, now - YEAR, n),
         "item_events": lambda db, n: items_service.purge_old_events(db, now - YEAR, n),
+        "meeting_events": lambda db, n: live_service.purge_old_events(
+            db, now - MEETING_EVENTS_TTL, n
+        ),
         "archived_items": lambda db, n: items_service.purge_items_of_archived_series(
             db, now - YEAR, n
         ),

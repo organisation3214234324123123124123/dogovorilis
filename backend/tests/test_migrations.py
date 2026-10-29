@@ -86,3 +86,25 @@ def test_models_match_migrations(scratch_url: str) -> None:
     finally:
         engine.dispose()
     assert diff == []
+
+
+def meetings_columns(url: str) -> set[str]:
+    engine = create_engine(url)
+    try:
+        return {c["name"] for c in inspect(engine).get_columns("meetings")}
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.fr("FR-14")
+def test_fr14_downgrade_drops_journal_and_upgrade_restores_it(scratch_url: str) -> None:
+    cfg = alembic_config()
+    command.upgrade(cfg, "0011")
+    reset_caches()
+    command.downgrade(cfg, "0010")
+    assert "meeting_events" not in public_tables(scratch_url)
+    assert "events_version" not in meetings_columns(scratch_url)
+    reset_caches()
+    command.upgrade(cfg, "head")
+    assert "meeting_events" in public_tables(scratch_url)
+    assert "events_version" in meetings_columns(scratch_url)
