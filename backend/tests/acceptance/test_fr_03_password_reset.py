@@ -38,8 +38,11 @@ def token_from(mail: Notification) -> str:
 
 
 def request_token(client: TestClient, db: Session, user) -> str:
+    known = {m.id for m in reset_mails(db, user)}
     assert client.post(RESET, json={"email": user.email}).status_code == 202
-    return token_from(reset_mails(db, user)[-1])
+    new = [m for m in reset_mails(db, user) if m.id not in known]
+    assert len(new) == 1, "запрос сброса должен создать ровно одно новое письмо"
+    return token_from(new[0])
 
 
 def confirm(client: TestClient, token: str, password: str = NEW_PASSWORD):
