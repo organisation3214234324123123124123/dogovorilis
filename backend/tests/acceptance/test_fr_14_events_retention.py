@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from freezegun import freeze_time
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.modules.live.models import MeetingEvent
@@ -128,3 +128,13 @@ def test_purge_batch_removes_oldest_numbers_first(world: World) -> None:
         meeting = meeting_with_journal(world, MeetingStatus.SENT, 31, versions=[6, 5, 4, 3, 2, 1])
         live_service.purge_old_events(world.db, NOW - timedelta(days=30), 2)
         assert journal(world, meeting) == [3, 4, 5, 6]
+
+
+def test_journal_is_deleted_with_its_meeting_and_other_journals_stay(world: World) -> None:
+    with freeze_time(NOW):
+        doomed = meeting_with_journal(world, MeetingStatus.LIVE, 1)
+        other = meeting_with_journal(world, MeetingStatus.LIVE, 1)
+        assert journal(world, doomed) == [1, 2, 3]
+        world.db.execute(delete(Meeting).where(Meeting.id == doomed.id))
+        assert journal(world, doomed) == []
+        assert journal(world, other) == [1, 2, 3]
