@@ -3,6 +3,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     ForeignKey,
     Index,
@@ -161,6 +162,7 @@ class Meeting(Base):
         pg_enum(ClosureTrigger, "closure_trigger")
     )
     summary_sent_at: Mapped[datetime | None]
+    events_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
     created_at: Mapped[datetime] = created_at_column()
 
 
