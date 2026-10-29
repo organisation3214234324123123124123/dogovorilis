@@ -29,8 +29,9 @@ x-backend: &backend
   depends_on:
     db:
       condition: service_healthy
+    # Ждём, пока Redis отвечает на ping, а не просто запущен.
     redis:
-      condition: service_started
+      condition: service_healthy
 
 services:
   db:
@@ -53,6 +54,11 @@ services:
     restart: unless-stopped
     logging: *logging
     image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   backend:
     <<: *backend
@@ -69,8 +75,11 @@ services:
     environment:
       <<: *backend-env
       RUN_MIGRATIONS: "0"
+    # Свой depends_on заменяет общий, поэтому Redis указан здесь явно.
     depends_on:
       backend:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command: ["celery", "-A", "app.worker", "worker", "-l", "info"]
 
@@ -79,8 +88,11 @@ services:
     environment:
       <<: *backend-env
       RUN_MIGRATIONS: "0"
+    # Свой depends_on заменяет общий, поэтому Redis указан здесь явно.
     depends_on:
       backend:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command: ["celery", "-A", "app.worker", "beat", "-l", "info", "-s", "/tmp/celerybeat-schedule"]
 
