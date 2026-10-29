@@ -159,6 +159,10 @@ class MeetingDetail(MeetingRead):
     agenda: list[AgendaItemRead]
     items: list[ItemRead]
     open_gaps_count: int = Field(description="Счётчик «осталось N пробелов»", examples=[2])
+    events_version: int = Field(
+        description="Номер последнего события панели на момент ответа (FR-14): точка для resync",
+        examples=[17],
+    )
 
 
 class MeetingStart(BaseModel):

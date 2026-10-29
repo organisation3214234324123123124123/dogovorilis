@@ -11,6 +11,7 @@ LiveEventType = Literal[
     "closure.opened",
     "agenda.updated",
     "meeting.sent",
+    "resync.reset",
 ]
 
 
@@ -21,7 +22,10 @@ class LiveEvent(BaseModel):
     event: LiveEventType = Field(description="То же, что type")
     meeting_id: uuid.UUID
     item_id: uuid.UUID | None = None
-    version: int | None = Field(
-        None, description="Версия пункта: по ней клиент отличает новое от устаревшего"
+    version: int = Field(
+        description="Номер события встречи: идёт подряд с 1; по нему клиент находит дыру и dedup"
     )
-    data: dict[str, Any] = Field(default_factory=dict, description="ItemRead или список GapRead")
+    data: dict[str, Any] | list[Any] = Field(
+        default_factory=dict,
+        description="ItemRead (версия пункта в data.version) или список GapRead",
+    )

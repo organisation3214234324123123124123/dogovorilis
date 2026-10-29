@@ -45,6 +45,8 @@ def test_ws_unknown_meeting_closes_4404(authed: TestClient) -> None:
 
 
 # publish() проверяется на внутрипроцессной шине (app.modules.live.bus), без Redis.
+# Догрузка по номеру события - в test_live_resync.py.
+# version кадра - номер события, версия пункта лежит в data.version.
 
 
 def _event(meeting_id, type_: str = "item.updated", **extra) -> dict:
@@ -167,6 +169,70 @@ def test_ws_allowed_origin_connects(authed: TestClient, world: World) -> None:
     ) as ws:
         publish(world.meeting.id, _event(world.meeting.id, "item.created"))
         assert ws.receive_json()["type"] == "item.created"
+
+
+@pytest.fixture
+def public_origin(monkeypatch: pytest.MonkeyPatch):
+    from app.core.config import get_settings
+
+    def _set(url: str) -> None:
+        monkeypatch.setenv("CORS_ORIGINS", '["http://localhost:5173"]')
+        monkeypatch.setenv("PUBLIC_BASE_URL", url)
+        get_settings.cache_clear()
+
+    yield _set
+    monkeypatch.undo()
+    get_settings.cache_clear()
+
+
+def _origin_code(client: TestClient, meeting_id, origin: str) -> int | None:
+    """None - соединение открыто, иначе код закрытия."""
+    try:
+        with client.websocket_connect(
+            f"/ws/meetings/{meeting_id}", headers={"origin": origin}
+        ) as ws:
+            from app.modules.live.service import publish
+
+            publish(meeting_id, _event(meeting_id, "item.created"))
+            ws.receive_json()
+            return None
+    except WebSocketDisconnect as exc:
+        return exc.code
+
+
+def test_ws_public_base_url_origin_connects(
+    authed: TestClient, world: World, public_origin
+) -> None:
+    public_origin("http://stack.example:8080")
+    assert _origin_code(authed, world.meeting.id, "http://stack.example:8080") is None
+
+
+def test_ws_public_base_url_with_path_compares_origin_only(
+    authed: TestClient, world: World, public_origin
+) -> None:
+    public_origin("http://stack.example:8080/app/")
+    assert _origin_code(authed, world.meeting.id, "http://stack.example:8080") is None
+
+
+def test_ws_foreign_origin_closes_4403_with_public_base_url(
+    authed: TestClient, world: World, public_origin
+) -> None:
+    public_origin("http://stack.example:8080/app")
+    for origin in (
+        "https://evil.example",
+        "http://stack.example:9090",
+        "https://stack.example:8080",
+        "http://stack.example:8080/app",
+    ):
+        assert _origin_code(authed, world.meeting.id, origin) == 4403, origin
+
+
+def test_ws_without_origin_connects_with_public_base_url(
+    authed: TestClient, world: World, public_origin
+) -> None:
+    public_origin("http://stack.example:8080")
+    with authed.websocket_connect(f"/ws/meetings/{world.meeting.id}"):
+        pass
 
 
 def test_ws_closes_4401_when_token_expires(client: TestClient, world: World) -> None:

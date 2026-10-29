@@ -19,6 +19,22 @@ from app.modules.series.models import (
 )
 
 
+def _lock_meeting_of(db: Session, item_id: uuid.UUID, owner_id: uuid.UUID | None = None) -> None:
+    """Порядок блокировок везде «встреча → пункты» (как в send_summary): иначе правка пункта,
+    берущая номер события у встречи, и рассылка итога дают взаимоблокировку."""
+    stmt = (
+        select(Meeting.id)
+        .join(Item, Item.meeting_id == Meeting.id)
+        .where(Item.id == item_id)
+        .with_for_update(of=Meeting)
+    )
+    if owner_id is not None:
+        stmt = stmt.join(Series, Series.id == Item.series_id).where(
+            Series.owner_user_id == owner_id
+        )
+    db.execute(stmt)
+
+
 def get_owned(
     db: Session, owner_id: uuid.UUID, item_id: uuid.UUID, *, lock: bool = False
 ) -> tuple[Item, Series, Meeting] | None:
@@ -29,12 +45,14 @@ def get_owned(
         .where(Item.id == item_id, Series.owner_user_id == owner_id)
     )
     if lock:
+        _lock_meeting_of(db, item_id, owner_id)
         stmt = stmt.with_for_update(of=Item)
     row = db.execute(stmt).one_or_none()
     return (row[0], row[1], row[2]) if row else None
 
 
 def get_locked(db: Session, item_id: uuid.UUID) -> tuple[Item, Series] | None:
+    _lock_meeting_of(db, item_id)
     stmt = (
         select(Item, Series)
         .join(Series, Series.id == Item.series_id)
@@ -260,6 +278,7 @@ def add_event(db: Session, event: ItemEvent) -> ItemEvent:
 
 
 def lock(db: Session, item: Item) -> None:
+    _lock_meeting_of(db, item.id)
     db.refresh(item, with_for_update=True)
 
 

@@ -184,6 +184,7 @@ def _detail(db: Session, meeting: Meeting, series: Series) -> MeetingDetail:
         ],
         items=items,
         open_gaps_count=sum(len(i.gaps) for i in items),
+        events_version=meeting.events_version,
     )
 
 
@@ -808,12 +809,16 @@ def anonymize_person(db: Session, person_id: uuid.UUID) -> AnonymizeResult:
     now = datetime.now(UTC)
     repository.lock_owner_numbering(db, person.owner_user_id)
     number = repository.count_anonymized_persons(db, person.owner_user_id) + 1
+    old_name, old_email = person.full_name, person.email
     person.full_name = f"Участник {number}"
     person.email = None
     person.anonymized_at = now
     links = confirm_service.revoke_person_links(db, person.id, now)
     comments = items_service.clear_person_comments(db, person.id, now)
     notifications_service.cancel_queued_for_person(db, person.id)
+    live_service.anonymize_person_events(
+        db, person.owner_user_id, person.id, old_name, old_email, person.full_name
+    )
     db.flush()
     return AnonymizeResult(
         person_id=person.id,

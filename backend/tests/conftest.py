@@ -1,5 +1,6 @@
 import os
 import sys
+import threading
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -103,23 +104,27 @@ def client(settings_reset: None, request: pytest.FixtureRequest) -> Iterator[Tes
         except pytest.skip.Exception:
             session = None
         if session is not None:
+            # Одна Session на тест: запросы из потоков (threadpool, WebSocket) берут её по очереди.
+            # Lock, а не RLock: вход и выход зависимости FastAPI идут в разных потоках пула.
+            guard = threading.Lock()
 
             def override_get_db() -> Iterator[Session]:
                 from app.core.errors import AppError
 
-                session.commit()  # данные теста переживут откат запроса
-                try:
-                    yield session
-                    session.commit()
-                except AppError as exc:
-                    if exc.keep_changes:
+                with guard:
+                    session.commit()  # данные теста переживут откат запроса
+                    try:
+                        yield session
                         session.commit()
-                    else:
+                    except AppError as exc:
+                        if exc.keep_changes:
+                            session.commit()
+                        else:
+                            session.rollback()
+                        raise
+                    except Exception:
                         session.rollback()
-                    raise
-                except Exception:
-                    session.rollback()
-                    raise
+                        raise
 
             app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:

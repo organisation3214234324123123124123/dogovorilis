@@ -973,10 +973,13 @@ components:
       description: Сообщение сервера в WS /ws/meetings/{id} (FR-14).
       properties:
         data:
-          additionalProperties: true
-          description: ItemRead или список GapRead
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - items: {}
+            type: array
+          description: ItemRead (версия пункта в data.version) или список GapRead
           title: Data
-          type: object
         event:
           description: То же, что type
           enum:
@@ -987,6 +990,7 @@ components:
           - closure.opened
           - agenda.updated
           - meeting.sent
+          - resync.reset
           title: Event
           type: string
         item_id:
@@ -1009,19 +1013,19 @@ components:
           - closure.opened
           - agenda.updated
           - meeting.sent
+          - resync.reset
           title: Type
           type: string
         version:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          default: null
-          description: 'Версия пункта: по ней клиент отличает новое от устаревшего'
+          description: 'Номер события встречи: идёт подряд с 1; по нему клиент находит
+            дыру и dedup'
           title: Version
+          type: integer
       required:
       - type
       - event
       - meeting_id
+      - version
       title: LiveEvent
       type: object
     LlmHealth:
@@ -1093,6 +1097,13 @@ components:
           format: date-time
           title: Created At
           type: string
+        events_version:
+          description: 'Номер последнего события панели на момент ответа (FR-14):
+            точка для resync'
+          examples:
+          - 17
+          title: Events Version
+          type: integer
         id:
           format: uuid
           title: Id
@@ -1162,6 +1173,7 @@ components:
       - agenda
       - items
       - open_gaps_count
+      - events_version
       title: MeetingDetail
       type: object
     MeetingRead:
