@@ -38,9 +38,9 @@ _VERSION_409 = {
     "/meetings/{meeting_id}/items",
     summary="Добавить решение строкой",
     description="Строка до 1000 символов. Пункт создаётся в draft, поля раскладываются правилами "
-    "в панель уходят item.created и item.updated. Встреча "
-    "должна быть в live, closing или sent: пункт, добавленный после рассылки, уходит повторным "
-    "«Разослать» (OQ-02).",
+    "в панель уходят item.created и item.updated. Встреча должна быть в live, closing или sent: "
+    "во встрече в sent пункт сразу создаётся как pending и уходит исполнителю, повторной "
+    "рассылки нет.",
     response_model=ItemRead,
     status_code=201,
     responses=errors(

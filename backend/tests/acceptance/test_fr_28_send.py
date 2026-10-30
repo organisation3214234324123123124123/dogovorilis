@@ -5,13 +5,13 @@
 """
 
 import re
-from datetime import timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
 
 from app.models import AccessLink
-from app.modules.items.models import ItemAction, ItemEvent, ItemStatus
+from app.modules.items.models import Item, ItemAction, ItemEvent, ItemStatus
 from app.modules.notifications.models import NotificationStatus
 from app.modules.series.models import MeetingStatus
 from tests.acceptance.helpers_mailing import (  # noqa: F401
@@ -29,7 +29,7 @@ from tests.acceptance.helpers_mailing import (  # noqa: F401
     token_of,
     tokens_in,
 )
-from tests.factories import World, make_access_link, make_gap
+from tests.factories import World, add_member, make_access_link, make_gap
 
 
 def item_headers(item) -> dict[str, str]:
@@ -154,16 +154,155 @@ def test_send_writes_sent_item_events(host, sc: Scenario) -> None:
 
 
 @pytest.mark.fr("FR-28")
-def test_item_added_after_send_goes_out_as_separate_confirm_request(host, sc: Scenario) -> None:
+@pytest.mark.fr("FR-30")
+def test_send_queues_both_summary_and_confirm_request_for_pending_assignee(
+    host, sc: Scenario
+) -> None:
     send(host, sc.world)
-    summaries = len(mails(sc.world.db, "SUMMARY"))
+    (summary,) = mails(sc.world.db, "SUMMARY", recipient_person_id=sc.ivan.id)
+    (request,) = mails(sc.world.db, "CONFIRM_REQUEST", recipient_person_id=sc.ivan.id)
+    assert summary.status == request.status == NotificationStatus.QUEUED
+    assert summary.dedupe_key != request.dedupe_key
+
+
+@pytest.mark.fr("FR-28")
+@pytest.mark.fr("FR-30")
+def test_assignee_of_pending_item_receives_summary_and_confirm_request_letters(
+    host, sc: Scenario, mailbox
+) -> None:
+    send(host, sc.world)
+    mailbox.run(TUESDAY + timedelta(minutes=5))
+    subjects = [letter["subject"] for letter in mailbox.to(sc.ivan)]
+    assert any(s.startswith("Итоги встречи") for s in subjects)
+    assert any(s.startswith("Подтвердите договорённость") for s in subjects)
+
+
+LATE_LINE = "Олег подготовит акт к пятнице"
+
+
+def add_oleg_to_series(sc: Scenario) -> None:
+    add_member(sc.world.db, sc.world.series, sc.oleg)
+
+
+def post_late_item(host, sc: Scenario, line: str = LATE_LINE) -> Item:
+    resp = host.post(f"{API}/meetings/{sc.world.meeting.id}/items", json={"raw_text": line})
+    assert resp.status_code == 201, resp.text
+    sc.world.db.expire_all()
+    return sc.world.db.get(Item, resp.json()["id"])
+
+
+@pytest.mark.fr("FR-28")
+@pytest.mark.fr("BR-5")
+def test_second_send_with_new_draft_returns_same_result_and_no_mails(host, sc: Scenario) -> None:
+    first = send(host, sc.world)
+    before = {m.dedupe_key for m in mails(sc.world.db)}
     late = sc.world.item(
         what="Опоздавший пункт", assignee_person_id=sc.oleg.id, status=ItemStatus.DRAFT
     )
+    again = send(host, sc.world)
+    body = again.json()
+    for field in ("meeting_id", "status", "summary_sent_at"):
+        assert body[field] == first.json()[field]
+    assert (body["already_sent"], body["items_sent"], body["notifications_queued"]) == (True, 0, 0)
+    assert {m.dedupe_key for m in mails(sc.world.db)} == before
+    sc.world.db.refresh(late)
+    assert late.status == ItemStatus.DRAFT
+    assert late.sent_at is None
+
+
+@pytest.mark.fr("FR-28")
+@pytest.mark.fr("BR-5")
+def test_second_send_with_new_draft_without_confirmation_is_not_gaps_open(
+    host, sc: Scenario
+) -> None:
     send(host, sc.world)
+    late = sc.world.item(
+        what="Опоздавший пункт", assignee_person_id=sc.oleg.id, status=ItemStatus.DRAFT
+    )
+    make_gap(sc.world.db, late)
+    again = send(host, sc.world, confirm=False, expect=None)
+    assert again.status_code == 200
+    assert again.json()["already_sent"] is True
+
+
+@pytest.mark.fr("FR-28")
+@pytest.mark.fr("BR-5")
+def test_item_created_after_send_is_pending_with_sent_at(host, sc: Scenario) -> None:
+    add_oleg_to_series(sc)
+    send(host, sc.world)
+    late = post_late_item(host, sc)
+    assert late.assignee_person_id == sc.oleg.id
+    assert late.status == ItemStatus.PENDING
+    assert late.sent_at is not None
+    assert late.accepted_at is None
+
+
+@pytest.mark.fr("FR-28")
+@pytest.mark.fr("FR-30")
+def test_item_created_after_send_gets_link_and_confirm_request(host, sc: Scenario) -> None:
+    add_oleg_to_series(sc)
+    send(host, sc.world)
+    summaries = len(mails(sc.world.db, "SUMMARY"))
+    late = post_late_item(host, sc)
+    assert late.status == ItemStatus.PENDING
     (request,) = mails(sc.world.db, "CONFIRM_REQUEST", item_id=late.id)
     assert request.recipient_person_id == sc.oleg.id
+    assert request.status == NotificationStatus.QUEUED
+    assert request.dedupe_key == f"{late.id}:CONFIRM_REQUEST:{sc.oleg.id}:{late.version}"
+    assert len(link_for(sc.world.db, sc.oleg, sc.world.meeting)) == 1
     assert len(mails(sc.world.db, "SUMMARY")) == summaries
+
+
+@pytest.mark.fr("FR-28")
+@pytest.mark.fr("FR-40")
+def test_item_created_after_send_plans_due_tomorrow(host, sc: Scenario) -> None:
+    add_oleg_to_series(sc)
+    send(host, sc.world)
+    late = post_late_item(host, sc)
+    assert late.due_date == date(2030, 1, 18)
+    (reminder,) = mails(sc.world.db, "DUE_TOMORROW", item_id=late.id)
+    assert reminder.recipient_person_id == sc.oleg.id
+    assert reminder.status == NotificationStatus.QUEUED
+    assert reminder.scheduled_for == datetime(2030, 1, 17, 6, 0, tzinfo=UTC)
+
+
+@pytest.mark.fr("FR-28")
+@pytest.mark.fr("FR-33")
+def test_item_created_after_send_plans_confirm_repeat(host, sc: Scenario) -> None:
+    add_oleg_to_series(sc)
+    send(host, sc.world)
+    late = post_late_item(host, sc)
+    assert late.status == ItemStatus.PENDING
+    (repeat,) = mails(sc.world.db, "CONFIRM_REPEAT", recipient_person_id=sc.oleg.id)
+    assert repeat.dedupe_key == f"{sc.world.meeting.id}:CONFIRM_REPEAT:{sc.oleg.id}"
+    assert repeat.status == NotificationStatus.QUEUED
+
+
+@pytest.mark.fr("FR-28")
+@pytest.mark.fr("BR-4")
+def test_item_without_assignee_created_after_send_is_pending_without_link_or_mail(
+    host, sc: Scenario
+) -> None:
+    send(host, sc.world)
+    links = len(sc.world.db.scalars(select(AccessLink)).all())
+    late = post_late_item(host, sc, "Подготовить презентацию")
+    assert late.assignee_person_id is None
+    assert late.status == ItemStatus.PENDING
+    assert late.sent_at is not None
+    assert mails(sc.world.db, item_id=late.id) == []
+    assert len(sc.world.db.scalars(select(AccessLink)).all()) == links
+
+
+@pytest.mark.fr("FR-28")
+@pytest.mark.fr("BR-5")
+def test_item_created_before_send_stays_draft(host, sc: Scenario) -> None:
+    add_oleg_to_series(sc)
+    sc.world.meeting.status = MeetingStatus.LIVE
+    sc.world.db.flush()
+    late = post_late_item(host, sc)
+    assert late.status == ItemStatus.DRAFT
+    assert late.sent_at is None
+    assert mails(sc.world.db, item_id=late.id) == []
 
 
 @pytest.mark.fr("FR-29")

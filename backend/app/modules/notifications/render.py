@@ -19,12 +19,20 @@ SUBJECTS = {
     NotificationType.ITEM_REASSIGNED: "Пункт передан другому: {what}",
     NotificationType.PASSWORD_RESET: "Сброс пароля в «Договорились»",
 }
+FIELD_LABELS = {
+    "what": "Что сделать",
+    "due_date": "Срок",
+    "done_criteria": "Критерий готовности",
+    "status": "Статус",
+}
+STATUS_LABELS = {"done": "Сделано", "accepted": "В работе", "pending": "Ждёт подтверждения"}
+EMPTY = "не указано"
 LEADS = {
     NotificationType.SUMMARY: "Итоги встречи «{series_title}». Ведущий: {host_name}.",
     NotificationType.CONFIRM_REQUEST: "{host_name} просит подтвердить договорённость.",
     NotificationType.CONFIRM_REPEAT: "Вы ещё не подтвердили договорённости со встречи.",
     NotificationType.DUE_TOMORROW: "Завтра срок по договорённости.",
-    NotificationType.ITEM_CHANGED: "Ведущий изменил пункт.",
+    NotificationType.ITEM_CHANGED: "Ведущий изменил пункт «{what}».",
     NotificationType.ITEM_REASSIGNED: "Пункт передан другому исполнителю.",
     NotificationType.PASSWORD_RESET: "Чтобы задать новый пароль, откройте ссылку.",
 }
@@ -53,6 +61,14 @@ def _date(value: str | None) -> str:
     return date.fromisoformat(value).strftime("%d.%m.%Y") if value else "срока нет"
 
 
+def _change_value(field: str, value: str | None) -> str:
+    if value is None:
+        return "срока нет" if field == "due_date" else EMPTY
+    if field == "due_date":
+        return _date(value)
+    return STATUS_LABELS.get(value, value) if field == "status" else value
+
+
 def _what(payload: dict[str, Any]) -> str:
     item = payload.get("item") or {}
     return item.get("what") or payload.get("what") or "пункт"
@@ -65,7 +81,11 @@ def _item_line(item: dict[str, Any]) -> str:
 
 def _body(token_for: TokenFor, kind: NotificationType, payload: dict[str, Any]) -> list[str]:
     lead = LEADS.get(kind, "")
-    lines = [lead.format(**{"series_title": "", "host_name": "", **payload})] if lead else []
+    lines = (
+        [lead.format(**{"series_title": "", "host_name": "", "what": _what(payload), **payload})]
+        if lead
+        else []
+    )
     if kind == NotificationType.HOST_RESPONSE:
         what = (
             f"предлагает новый срок {_date(payload.get('due_date'))}"
@@ -80,7 +100,8 @@ def _body(token_for: TokenFor, kind: NotificationType, payload: dict[str, Any]) 
         lines.append(payload["url"])
     elif kind == NotificationType.ITEM_CHANGED:
         for field, change in (payload.get("changes") or {}).items():
-            lines.append(f"{field}: {change['from']} → {change['to']}")
+            before, after = (_change_value(field, change[k]) for k in ("from", "to"))
+            lines.append(f"{FIELD_LABELS.get(field, field)}: {before} → {after}")
     else:
         for item in payload.get("items") or [payload.get("item") or {"what": _what(payload)}]:
             lines.append(("→ " if item.get("mine") else "") + _item_line(item))

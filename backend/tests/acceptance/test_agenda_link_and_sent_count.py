@@ -106,15 +106,17 @@ def _sent(world: World, meeting, at: datetime, kind=NotificationType.SUMMARY, **
 
 
 @pytest.mark.fr("FR-28")
-def test_sent_count_counts_letters_about_different_meetings_separately(world: World) -> None:
+def test_sent_count_groups_letters_of_one_type_to_one_person_without_meeting(
+    world: World,
+) -> None:
     now = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
     second = make_meeting(world.db, world.series)
     _sent(world, world.meeting, now)
-    _sent(world, second, now)  # тот же тип, то же время, другая встреча: другое письмо
+    _sent(world, second, now)  # тот же тип, тот же получатель, то же время - одно письмо
     count = notif_repo.sent_count(
         world.db, world.person.id, world.series.id, now - timedelta(days=7), now
     )
-    assert count == 2
+    assert count == 1
 
 
 @pytest.mark.fr("FR-28")

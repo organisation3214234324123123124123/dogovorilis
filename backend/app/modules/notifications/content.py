@@ -49,6 +49,18 @@ def buttons(
     ]
 
 
+def open_buttons(item_id: uuid.UUID, kind: NotificationType) -> list[dict[str, str]]:
+    """Письмо без ответа для исполнителя всё равно несёт кнопку на страницу (FR-30)."""
+    return [
+        {
+            "item_id": str(item_id),
+            "action": "open",
+            "label": "Открыть страницу",
+            "query": f"?item={item_id}&n={kind.value}",
+        }
+    ]
+
+
 def entry(item: Item, assignee: str | None) -> dict[str, Any]:
     return {
         "id": str(item.id),

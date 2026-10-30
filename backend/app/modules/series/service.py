@@ -78,6 +78,11 @@ def get_owned_meeting(db: Session, user: User, meeting_id: uuid.UUID) -> tuple[M
     return found
 
 
+def lock_meeting(db: Session, meeting: Meeting) -> None:
+    """Блокировка строки встречи: ждёт идущую рассылку и перечитывает статус."""
+    repository.lock_meeting(db, meeting)
+
+
 def member_persons(db: Session, series_id: uuid.UUID) -> list[Person]:
     return [p for p, _ in repository.members(db, series_id)]
 
@@ -539,73 +544,21 @@ def open_due_closures(db: Session, now: datetime) -> int:
     return len(due)
 
 
-def _queue_letters(
-    db: Session,
-    series: Series,
-    meeting: Meeting,
-    sent: list[Item],
-    all_sent: list[Item],
-    *,
-    first: bool,
-    now: datetime,
-) -> int:
-    """Письма одной рассылки; повтор ничего не дублирует благодаря dedupe_key. SUMMARY получают все
-    участники, но только при первой рассылке; ссылку получает каждый исполнитель, в том числе по
-    согласованным пунктам (FR-35).
-    """
-    people = {i.assignee_person_id for i in (all_sent if first else sent) if i.assignee_person_id}
+def _queue_summaries(db: Session, meeting: Meeting, all_sent: list[Item], now: datetime) -> int:
+    """SUMMARY встречи каждому участнику (FR-35)."""
+    people = {i.assignee_person_id for i in all_sent if i.assignee_person_id}
     links = {p: confirm_service.ensure_link(db, p, meeting.id, now).id for p in people}
     queued = 0
-    if first:
-        for mp, _, _ in repository.participants(db, meeting.id):
-            queued += notifications_service.queue(
-                db,
-                NotificationType.SUMMARY,
-                item_id=None,
-                meeting_id=meeting.id,
-                person_id=mp.person_id,
-                dedupe_key=f"{meeting.id}:SUMMARY:{mp.person_id}",
-                scheduled_for=now,
-                payload=content.summary(db, meeting.id, mp.person_id, links.get(mp.person_id)),
-            )
-    repeat_for: set[uuid.UUID] = set()
-    for item in sent:
-        person = item.assignee_person_id
-        if person is None:
-            continue
-        link_id = links[person]
-        if item.status == ItemStatus.PENDING:
-            repeat_for.add(person)
-            queued += notifications_service.queue(
-                db,
-                NotificationType.CONFIRM_REQUEST,
-                item_id=item.id,
-                meeting_id=meeting.id,
-                person_id=person,
-                dedupe_key=f"{item.id}:CONFIRM_REQUEST:{person}:{item.version}",
-                scheduled_for=now,
-                payload=content.confirm_request(db, item, link_id),
-            )
-        queued += notifications_service.plan_due_reminder(
-            db,
-            item_id=item.id,
-            meeting_id=meeting.id,
-            person_id=person,
-            due_date=item.due_date,
-            version=item.version,
-            tz=series.timezone,
-            now=now,
-            payload=content.due_tomorrow(db, item, link_id),
-        )
-    for person in repeat_for:
+    for mp, _, _ in repository.participants(db, meeting.id):
         queued += notifications_service.queue(
             db,
-            NotificationType.CONFIRM_REPEAT,
+            NotificationType.SUMMARY,
             item_id=None,
             meeting_id=meeting.id,
-            person_id=person,
-            dedupe_key=f"{meeting.id}:CONFIRM_REPEAT:{person}",
-            scheduled_for=notifications_service.repeat_time(now, series.timezone),
+            person_id=mp.person_id,
+            dedupe_key=f"{meeting.id}:SUMMARY:{mp.person_id}",
+            scheduled_for=now,
+            payload=content.summary(db, meeting.id, mp.person_id, links.get(mp.person_id)),
         )
     return queued
 
@@ -632,8 +585,6 @@ def send_summary(db: Session, user: User, meeting_id: uuid.UUID, body: SendReque
     if meeting.status == MeetingStatus.PLANNED:
         raise Conflict("Встреча ещё не началась", code="MEETING_NOT_LIVE")
     items = items_service.meeting_items(db, meeting.id, lock=True)
-    drafts = [i for i in items if i.status == ItemStatus.DRAFT]
-    first = meeting.status != MeetingStatus.SENT
     gaps = items_service.open_gaps(db, [i.id for i in items])
     counters = {
         "items_total": len(items),
@@ -641,32 +592,30 @@ def send_summary(db: Session, user: User, meeting_id: uuid.UUID, body: SendReque
         "items_unassigned": sum(1 for i in items if i.assignee_person_id is None),
         "recipients": len(repository.participants(db, meeting.id)),
     }
-    if not first and not drafts:
+    if meeting.status == MeetingStatus.SENT:
         return _send_result(meeting, counters, items_sent=0, queued=0, already_sent=True)
+    drafts = [i for i in items if i.status == ItemStatus.DRAFT]
     open_gaps = sum(len(gaps.get(i.id, [])) for i in drafts)
     if open_gaps and not body.confirm_open_gaps:
         raise ValidationFailed(
             f"Осталось пробелов: {open_gaps}", code="GAPS_OPEN", open_gaps=open_gaps
         )
     now = datetime.now(UTC)
-    if first:
-        meeting.status = MeetingStatus.SENT
-        meeting.summary_sent_at = now
-    for item in drafts:
-        items_service.send_draft(db, user, item, now)
+    meeting.status = MeetingStatus.SENT
+    meeting.summary_sent_at = now
+    queued = sum(items_service.send_item(db, user, item, series, now) for item in drafts)
     all_sent = [i for i in items if i.sent_at is not None and i.status != ItemStatus.CANCELLED]
-    queued = _queue_letters(db, series, meeting, drafts, all_sent, first=first, now=now)
-    if first:
-        analytics_service.track(
-            db,
-            "summary_sent",
-            user_id=user.id,
-            series_id=series.id,
-            meeting_id=meeting.id,
-            items_total=counters["items_total"],
-            items_with_open_gaps=counters["items_with_open_gaps"],
-            recipients=counters["recipients"],
-        )
+    queued += _queue_summaries(db, meeting, all_sent, now)
+    analytics_service.track(
+        db,
+        "summary_sent",
+        user_id=user.id,
+        series_id=series.id,
+        meeting_id=meeting.id,
+        items_total=counters["items_total"],
+        items_with_open_gaps=counters["items_with_open_gaps"],
+        recipients=counters["recipients"],
+    )
     for item in drafts:
         items_service.emit_updated(db, item, series.timezone)
     live_service.publish_after_commit(
