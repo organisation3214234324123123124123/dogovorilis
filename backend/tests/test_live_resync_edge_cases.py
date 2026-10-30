@@ -36,7 +36,7 @@ LOCK_WAIT_S = 3.0
 
 
 def ws_url(meeting_id) -> str:
-    return f"/ws/meetings/{meeting_id}"
+    return f"/api/v1/ws/meetings/{meeting_id}"
 
 
 def events_version(client: TestClient, meeting_id) -> int:

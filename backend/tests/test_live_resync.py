@@ -20,7 +20,7 @@ def live_meeting(world: World) -> None:
 
 
 def ws_url(meeting_id) -> str:
-    return f"/ws/meetings/{meeting_id}"
+    return f"/api/v1/ws/meetings/{meeting_id}"
 
 
 def add_item(client: TestClient, meeting_id, raw: str = "Иван подготовит отчёт к пятнице") -> dict:

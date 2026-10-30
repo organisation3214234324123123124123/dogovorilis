@@ -144,7 +144,7 @@ def ws_events(
         except Exception:
             return
 
-    with client.websocket_connect(f"/ws/meetings/{meeting_id}") as ws:
+    with client.websocket_connect(f"/api/v1/ws/meetings/{meeting_id}") as ws:
         thread = threading.Thread(target=reader, args=(ws,), daemon=True)
         thread.start()
         act()

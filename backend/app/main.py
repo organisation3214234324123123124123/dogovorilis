@@ -23,7 +23,7 @@ password `demo1234`), затем `GET /api/v1/series`.
 
 Ошибки приходят как `application/problem+json` с полем `code`.
 Изменение пункта идёт с заголовком `If-Match: <version>`.
-Живая панель работает по WebSocket `/ws/meetings/{id}`, сообщения описаны схемой `LiveEvent`.
+Живая панель работает по WebSocket `/api/v1/ws/meetings/{id}`, сообщения описаны схемой `LiveEvent`.
 """
 
 TAGS = [
@@ -87,10 +87,10 @@ def create_app() -> FastAPI:
         confirm_router,
         analytics_router,
         llm_router,
+        live_router,
     ):
         api.include_router(router)
     app.include_router(api)
-    app.include_router(live_router)
     return app
 
 

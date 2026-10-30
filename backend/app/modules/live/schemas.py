@@ -16,7 +16,7 @@ LiveEventType = Literal[
 
 
 class LiveEvent(BaseModel):
-    """Сообщение сервера в WS /ws/meetings/{id} (FR-14)."""
+    """Сообщение сервера в WS /api/v1/ws/meetings/{id} (FR-14)."""
 
     type: LiveEventType
     event: LiveEventType = Field(description="То же, что type")
@@ -27,5 +27,8 @@ class LiveEvent(BaseModel):
     )
     data: dict[str, Any] | list[Any] = Field(
         default_factory=dict,
-        description="ItemRead (версия пункта в data.version) или список GapRead",
+        description=(
+            "ItemRead (версия пункта в data.version); "
+            "для gaps.updated - {item_id, gaps}, gaps - список GapRead"
+        ),
     )

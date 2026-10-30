@@ -13,7 +13,7 @@ pytestmark = pytest.mark.fr("FR-14")
 def connect_code(client: TestClient, meeting_id) -> int:
     with (
         pytest.raises(WebSocketDisconnect) as exc,
-        client.websocket_connect(f"/ws/meetings/{meeting_id}") as ws,
+        client.websocket_connect(f"/api/v1/ws/meetings/{meeting_id}") as ws,
     ):
         ws.receive_text()
     return exc.value.code
@@ -54,7 +54,7 @@ def _event(meeting_id, type_: str = "item.updated", **extra) -> dict:
 
 
 def test_ws_owner_connects_and_stays_open(authed: TestClient, world: World) -> None:
-    with authed.websocket_connect(f"/ws/meetings/{world.meeting.id}") as ws:
+    with authed.websocket_connect(f"/api/v1/ws/meetings/{world.meeting.id}") as ws:
         # закрытие сервером (раньше 4501) дало бы WebSocketDisconnect на receive
         from app.modules.live.service import publish
 
@@ -68,7 +68,7 @@ def test_ws_owner_connects_and_stays_open(authed: TestClient, world: World) -> N
 def test_publish_delivers_frame_with_type(authed: TestClient, world: World, type_: str) -> None:
     from app.modules.live.service import publish
 
-    with authed.websocket_connect(f"/ws/meetings/{world.meeting.id}") as ws:
+    with authed.websocket_connect(f"/api/v1/ws/meetings/{world.meeting.id}") as ws:
         publish(world.meeting.id, _event(world.meeting.id, type_, version=2))
         frame = ws.receive_json()
     assert frame["type"] == type_
@@ -82,7 +82,7 @@ def test_publish_frame_carries_event_equal_to_type(
 ) -> None:
     from app.modules.live.service import publish
 
-    with authed.websocket_connect(f"/ws/meetings/{world.meeting.id}") as ws:
+    with authed.websocket_connect(f"/api/v1/ws/meetings/{world.meeting.id}") as ws:
         publish(world.meeting.id, _event(world.meeting.id, type_))
         frame = ws.receive_json()
     assert frame["event"] == type_
@@ -92,7 +92,7 @@ def test_publish_frame_carries_event_equal_to_type(
 def test_publish_reaches_all_subscribers_of_meeting(authed: TestClient, world: World) -> None:
     from app.modules.live.service import publish
 
-    url = f"/ws/meetings/{world.meeting.id}"
+    url = f"/api/v1/ws/meetings/{world.meeting.id}"
     with authed.websocket_connect(url) as ws1, authed.websocket_connect(url) as ws2:
         publish(world.meeting.id, _event(world.meeting.id, "gaps.updated"))
         assert ws1.receive_json()["type"] == "gaps.updated"
@@ -105,8 +105,8 @@ def test_publish_not_delivered_to_other_meeting(authed: TestClient, world: World
 
     other = make_meeting(world.db, world.series)
     with (
-        authed.websocket_connect(f"/ws/meetings/{world.meeting.id}") as ws_a,
-        authed.websocket_connect(f"/ws/meetings/{other.id}") as ws_b,
+        authed.websocket_connect(f"/api/v1/ws/meetings/{world.meeting.id}") as ws_a,
+        authed.websocket_connect(f"/api/v1/ws/meetings/{other.id}") as ws_b,
     ):
         publish(other.id, _event(other.id, "closure.opened"))
         assert ws_b.receive_json()["type"] == "closure.opened"
@@ -152,7 +152,7 @@ def test_ws_foreign_origin_closes_4403(authed: TestClient, world: World) -> None
     with (
         pytest.raises(WebSocketDisconnect) as exc,
         authed.websocket_connect(
-            f"/ws/meetings/{world.meeting.id}", headers={"origin": "https://evil.example"}
+            f"/api/v1/ws/meetings/{world.meeting.id}", headers={"origin": "https://evil.example"}
         ) as ws,
     ):
         ws.receive_text()
@@ -165,7 +165,7 @@ def test_ws_allowed_origin_connects(authed: TestClient, world: World) -> None:
 
     origin = get_settings().cors_origins[0]
     with authed.websocket_connect(
-        f"/ws/meetings/{world.meeting.id}", headers={"origin": origin}
+        f"/api/v1/ws/meetings/{world.meeting.id}", headers={"origin": origin}
     ) as ws:
         publish(world.meeting.id, _event(world.meeting.id, "item.created"))
         assert ws.receive_json()["type"] == "item.created"
@@ -189,7 +189,7 @@ def _origin_code(client: TestClient, meeting_id, origin: str) -> int | None:
     """None - соединение открыто, иначе код закрытия."""
     try:
         with client.websocket_connect(
-            f"/ws/meetings/{meeting_id}", headers={"origin": origin}
+            f"/api/v1/ws/meetings/{meeting_id}", headers={"origin": origin}
         ) as ws:
             from app.modules.live.service import publish
 
@@ -231,7 +231,7 @@ def test_ws_without_origin_connects_with_public_base_url(
     authed: TestClient, world: World, public_origin
 ) -> None:
     public_origin("http://stack.example:8080")
-    with authed.websocket_connect(f"/ws/meetings/{world.meeting.id}"):
+    with authed.websocket_connect(f"/api/v1/ws/meetings/{world.meeting.id}"):
         pass
 
 
@@ -241,7 +241,7 @@ def test_ws_closes_4401_when_token_expires(client: TestClient, world: World) -> 
     client.cookies.set(SESSION_COOKIE, create_access_token(world.user.id, ttl=2))
     with (
         pytest.raises(WebSocketDisconnect) as exc,
-        client.websocket_connect(f"/ws/meetings/{world.meeting.id}") as ws,
+        client.websocket_connect(f"/api/v1/ws/meetings/{world.meeting.id}") as ws,
     ):
         ws.receive_text()  # без событий; сервер сам закроет по exp
     assert exc.value.code == 4401
@@ -265,7 +265,7 @@ def test_pump_failure_closes_1011(
     monkeypatch.setattr(bus, "subscribe", broken)
     with (
         pytest.raises(WebSocketDisconnect) as exc,
-        authed.websocket_connect(f"/ws/meetings/{world.meeting.id}") as ws,
+        authed.websocket_connect(f"/api/v1/ws/meetings/{world.meeting.id}") as ws,
     ):
         ws.receive_text()
     assert exc.value.code == 1011
@@ -289,7 +289,7 @@ def test_slow_subscriber_queue_overflow_closes_1013(
     monkeypatch.setattr(WebSocket, "send_json", slow_send)
     with (
         pytest.raises(WebSocketDisconnect) as exc,
-        authed.websocket_connect(f"/ws/meetings/{world.meeting.id}") as ws,
+        authed.websocket_connect(f"/api/v1/ws/meetings/{world.meeting.id}") as ws,
     ):
         for _ in range(300):  # очередь подписчика ограничена 100
             publish(world.meeting.id, _event(world.meeting.id, "item.updated", version=1))
