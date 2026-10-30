@@ -33,6 +33,11 @@ restart:
 db-backup:
 	bash scripts/backup-db.sh
 
+.PHONY: db-restore
+# make db-restore f=backups/<файл>.sql.gz
+db-restore:
+	bash scripts/restore-db.sh $(f)
+
 install:
 	cd backend && $(TO) 300 uv sync
 
