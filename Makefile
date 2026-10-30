@@ -29,6 +29,10 @@ ps:
 restart:
 	$(COMPOSE) restart $(s)
 
+.PHONY: db-backup
+db-backup:
+	bash scripts/backup-db.sh
+
 install:
 	cd backend && $(TO) 300 uv sync
 
