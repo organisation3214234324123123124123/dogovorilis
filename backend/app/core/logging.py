@@ -10,6 +10,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import Response
 
+from app.core.errors import problem
+
 request_id_var: ContextVar[str] = ContextVar("request_id", default="-")
 
 _EMAIL = re.compile(r"([\w.+-])[\w.+-]*@([\w-]+\.[\w.-]+)")
@@ -62,9 +64,12 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
         except Exception:
             self.logger.exception(
-                "unhandled error", extra={"path": mask_link_token(request.url.path)}
+                "unhandled error",
+                extra={"path": mask_link_token(request.url.path), "request_id": request_id},
             )
-            raise
+            response = problem(request, 500, "Internal Server Error", None, "INTERNAL_ERROR")
+            response.headers["X-Request-ID"] = request_id
+            return response
         else:
             response.headers["X-Request-ID"] = request_id
             self.logger.info(

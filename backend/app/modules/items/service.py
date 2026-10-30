@@ -11,7 +11,6 @@ from app.core.errors import (
     Conflict,
     Forbidden,
     NotFound,
-    PreconditionRequired,
     RateLimited,
     ValidationFailed,
 )
@@ -279,11 +278,11 @@ def list_series_items(
 
 def parse_if_match(value: str | None) -> int:
     if value is None:
-        raise PreconditionRequired("Нужен заголовок If-Match с версией пункта")
+        raise ValidationFailed("Нужен заголовок If-Match с версией пункта", field="If-Match")
     try:
         return int(value.removeprefix("W/").strip('"'))
     except ValueError as exc:
-        raise ValidationFailed("If-Match должен содержать номер версии") from exc
+        raise ValidationFailed("If-Match должен содержать номер версии", field="If-Match") from exc
 
 
 def _emit(
@@ -386,7 +385,7 @@ def create_item(db: Session, user: User, meeting_id: uuid.UUID, body: ItemCreate
     if body.agenda_item_id and not series_service.has_agenda_item(
         db, meeting.id, body.agenda_item_id
     ):
-        raise ValidationFailed("Пункт повестки не из этой встречи")
+        raise ValidationFailed("Пункт повестки не из этой встречи", field="agenda_item_id")
     _check_rate(db, meeting.id)
     today = today_in(series.timezone)
 
@@ -455,13 +454,19 @@ def update_item(
     if assignee_changes:
         if sent:
             raise ValidationFailed(
-                "После рассылки исполнителя меняют через «Переназначить»", code="USE_REASSIGN"
+                "После рассылки исполнителя меняют через «Переназначить»",
+                code="USE_REASSIGN",
+                field="assignee_person_id",
             )
         new = body.assignee_person_id
         if new is not None and not series_service.is_member(db, series.id, new):
-            raise ValidationFailed("Исполнитель не участник серии", code="NOT_A_PARTICIPANT")
+            raise ValidationFailed(
+                "Исполнитель не участник серии",
+                code="NOT_A_PARTICIPANT",
+                field="assignee_person_id",
+            )
     if body.due_date is not None and body.due_date != item.due_date and body.due_date < today:
-        raise ValidationFailed("Срок раньше сегодняшнего дня", code="DUE_IN_PAST")
+        raise ValidationFailed("Срок раньше сегодняшнего дня", code="DUE_IN_PAST", field="due_date")
 
     old = {f: getattr(item, f) for f in provided}
     changed = [f for f in provided if getattr(body, f) != old[f]]
@@ -698,7 +703,7 @@ def _do_reschedule(
 ) -> ItemAction:
     _require_status(item, tuple(OPEN_STATUSES))
     if body.due_date < today_in(series.timezone):
-        raise ValidationFailed("Срок не может быть в прошлом", code="DUE_IN_PAST")
+        raise ValidationFailed("Срок не может быть в прошлом", code="DUE_IN_PAST", field="due_date")
     item.due_date = body.due_date
     item.reschedule_count += 1
     return ItemAction.RESCHEDULED
@@ -717,7 +722,11 @@ def _do_reassign(
 ) -> ItemAction:
     _require_status(item, (*OPEN_STATUSES, ItemStatus.DISPUTED))
     if not series_service.is_member(db, series.id, body.assignee_person_id):
-        raise ValidationFailed("Исполнитель должен быть участником серии", code="NOT_A_PARTICIPANT")
+        raise ValidationFailed(
+            "Исполнитель должен быть участником серии",
+            code="NOT_A_PARTICIPANT",
+            field="assignee_person_id",
+        )
     item.assignee_person_id = body.assignee_person_id
     item.status = ItemStatus.PENDING
     item.accepted_in_meeting = False
@@ -844,9 +853,11 @@ def send_draft(db: Session, user: User, item: Item, now: datetime) -> None:
 
 def _check_new_due(item: Item, series: Series, due: date) -> None:
     if due < today_in(series.timezone):
-        raise ValidationFailed("Срок не может быть в прошлом", code="DUE_IN_PAST")
+        raise ValidationFailed("Срок не может быть в прошлом", code="DUE_IN_PAST", field="due_date")
     if item.due_date and due > item.due_date + confirm_service.RESCHEDULE_LIMIT:
-        raise ValidationFailed("Новый срок не позже исходного плюс 60 дней", code="DUE_TOO_LATE")
+        raise ValidationFailed(
+            "Новый срок не позже исходного плюс 60 дней", code="DUE_TOO_LATE", field="due_date"
+        )
 
 
 def _answer(

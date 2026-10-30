@@ -514,12 +514,12 @@ def test_whitespace_only_line_is_422(authed: TestClient, world: World, text: str
 
 
 @pytest.mark.fr("FR-15")
-def test_delete_without_if_match_is_428(authed: TestClient, world: World) -> None:
+def test_delete_without_if_match_is_422(authed: TestClient, world: World) -> None:
     make_ctx(world)
     item = world.item()
     resp = authed.delete(f"{API}/items/{item.id}")
-    assert resp.status_code == 428
-    assert problem_code(resp) == "PRECONDITION_REQUIRED"
+    assert resp.status_code == 422
+    assert problem_code(resp) == "VALIDATION_ERROR"
 
 
 @pytest.mark.fr("FR-15")
@@ -626,15 +626,15 @@ def test_savepoint_rollback_keeps_outer_frames(db, world: World, published) -> N
 
 @pytest.mark.fr("FR-15")
 @pytest.mark.parametrize("status", [ItemStatus.PENDING, ItemStatus.DONE])
-def test_delete_non_draft_without_if_match_is_428(
+def test_delete_non_draft_without_if_match_is_422(
     authed: TestClient, world: World, status: ItemStatus
 ) -> None:
     make_ctx(world)
     extra = {"done_at": SENT_AT} if status == ItemStatus.DONE else {}
     item = world.item(status=status, sent_at=SENT_AT, **extra)
     resp = authed.delete(f"{API}/items/{item.id}")
-    assert resp.status_code == 428
-    assert problem_code(resp) == "PRECONDITION_REQUIRED"
+    assert resp.status_code == 422
+    assert problem_code(resp) == "VALIDATION_ERROR"
 
 
 @pytest.mark.fr("FR-11")

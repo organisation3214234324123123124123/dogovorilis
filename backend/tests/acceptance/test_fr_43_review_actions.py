@@ -301,11 +301,11 @@ def test_stale_if_match_is_version_conflict(authed: TestClient, world: World) ->
     assert resp.json()["code"] == "VERSION_CONFLICT"
 
 
-def test_missing_if_match_is_precondition_required(authed: TestClient, world: World) -> None:
+def test_missing_if_match_is_validation_error(authed: TestClient, world: World) -> None:
     item = make(world)
     resp = authed.post(f"/api/v1/items/{item.id}/actions", json={"action": "done"})
-    assert resp.status_code == 428
-    assert resp.json()["code"] == "PRECONDITION_REQUIRED"
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "VALIDATION_ERROR"
 
 
 @pytest.mark.parametrize(

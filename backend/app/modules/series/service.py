@@ -245,7 +245,7 @@ def _member_read(person: Person, org: Organization) -> MemberRead:
 
 def create_series(db: Session, user: User, body: SeriesCreate) -> SeriesDetail:
     if body.capture_mode == CaptureMode.AUDIO:
-        raise ValidationFailed("Режим audio появится на этапе 3")  # OQ-15
+        raise ValidationFailed("Режим audio появится на этапе 3", field="capture_mode")  # OQ-15
     series = repository.add(
         db,
         Series(
@@ -285,7 +285,7 @@ def archive_series(db: Session, user: User, series_id: uuid.UUID) -> SeriesDetai
         return get_series(db, user, series.id)  # повтор: дата архивации не сдвигается
     repository.lock_series(db, series)
     if repository.active_meetings(db, [series.id]):
-        raise Conflict("В серии идёт встреча", code="MEETING_ALREADY_LIVE")
+        raise Conflict("В серии идёт встреча", code="MEETING_IN_PROGRESS")
     series.status = SeriesStatus.ARCHIVED
     series.archived_at = datetime.now(UTC)
     db.flush()
@@ -331,12 +331,12 @@ def start_meeting(
     repository.lock_series(db, series)
     archived_guard(series)
     if repository.active_meetings(db, [series.id]):
-        raise Conflict("В серии уже идёт встреча", code="MEETING_ALREADY_LIVE")
+        raise Conflict("В серии уже идёт встреча", code="MEETING_IN_PROGRESS")
     now = datetime.now(UTC)
     end = _utc(body.planned_end) if body.planned_end else None
     end = end or now + timedelta(minutes=series.planned_duration_min)
     if end <= now:
-        raise ValidationFailed("Плановый конец должен быть позже начала")
+        raise ValidationFailed("Плановый конец должен быть позже начала", field="planned_end")
     try:
         with db.begin_nested():
             meeting = repository.add(
@@ -350,7 +350,7 @@ def start_meeting(
                 ),
             )
     except IntegrityError as exc:
-        raise Conflict("В серии уже идёт встреча", code="MEETING_ALREADY_LIVE") from exc
+        raise Conflict("В серии уже идёт встреча", code="MEETING_IN_PROGRESS") from exc
     for person_id in repository.member_ids(db, series.id):
         repository.add(db, MeetingParticipant(meeting_id=meeting.id, person_id=person_id))
     _copy_moved_agenda(db, series, meeting)
@@ -384,15 +384,17 @@ def update_meeting(
     if body.planned_end is not None:
         end = _utc(body.planned_end)
         if end <= meeting.planned_start:
-            raise ValidationFailed("Плановый конец должен быть позже начала")
+            raise ValidationFailed("Плановый конец должен быть позже начала", field="planned_end")
         meeting.planned_end = end
     if body.participants is not None:
         rows = []
-        for entry in body.participants:
+        for index, entry in enumerate(body.participants):
             row = repository.get_participant(db, meeting.id, entry.person_id)
             if row is None:
                 raise ValidationFailed(
-                    "Человека нет среди участников встречи", code="NOT_A_PARTICIPANT"
+                    "Человека нет среди участников встречи",
+                    code="NOT_A_PARTICIPANT",
+                    field=f"participants.{index}.person_id",
                 )
             rows.append((row, entry.present))
         for row, present in rows:
@@ -644,7 +646,7 @@ def send_summary(db: Session, user: User, meeting_id: uuid.UUID, body: SendReque
     open_gaps = sum(len(gaps.get(i.id, [])) for i in drafts)
     if open_gaps and not body.confirm_open_gaps:
         raise ValidationFailed(
-            f"Осталось пробелов: {open_gaps}", code="GAPS_OPEN", open_gaps_count=open_gaps
+            f"Осталось пробелов: {open_gaps}", code="GAPS_OPEN", open_gaps=open_gaps
         )
     now = datetime.now(UTC)
     if first:

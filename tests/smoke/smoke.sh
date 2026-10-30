@@ -99,7 +99,7 @@ ITEM_ID="$(field .id)"
 VERSION="$(field .version)"
 
 req PATCH "$API/items/$ITEM_ID" '{"done_criteria":"Отчёт лежит в общей папке"}'
-expect "правка без If-Match -> 428" 428 '.code == "PRECONDITION_REQUIRED"'
+expect "правка без If-Match -> 422" 422 '.code == "VALIDATION_ERROR"'
 
 req PATCH "$API/items/$ITEM_ID" '{"done_criteria":"Отчёт лежит в общей папке"}' "If-Match: $VERSION"
 expect "правка пункта с If-Match" 200 \

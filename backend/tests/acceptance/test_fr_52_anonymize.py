@@ -61,27 +61,27 @@ def add_notification(w: World, person: Person, status: NotificationStatus, key: 
     return row
 
 
-def test_without_token_is_admin_forbidden(client: TestClient, world: World, admin) -> None:
+def test_without_token_is_unauthorized(client: TestClient, world: World, admin) -> None:
     resp = client.post(url(world.person))
-    assert resp.status_code == 403
-    assert resp.json()["code"] == "ADMIN_FORBIDDEN"
+    assert resp.status_code == 401
+    assert resp.json()["code"] == "UNAUTHORIZED"
 
 
-def test_host_session_is_admin_forbidden(client: TestClient, world: World, admin) -> None:
+def test_host_session_is_unauthorized(client: TestClient, world: World, admin) -> None:
     login_as(client, world.user)
     resp = client.post(url(world.person))
-    assert resp.status_code == 403
-    assert resp.json()["code"] == "ADMIN_FORBIDDEN"
+    assert resp.status_code == 401
+    assert resp.json()["code"] == "UNAUTHORIZED"
     assert world.db.get(Person, world.person.id).anonymized_at is None
 
 
-def test_empty_admin_token_is_admin_disabled(
+def test_empty_admin_token_is_unauthorized(
     client: TestClient, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("ADMIN_TOKEN", "")
     get_settings.cache_clear()
     resp = client.post(url(world.person), headers={"X-Admin-Token": TOKEN})
-    assert resp.json()["code"] == "ADMIN_DISABLED"
+    assert resp.json()["code"] == "UNAUTHORIZED"
 
 
 def test_unknown_person_is_404(client: TestClient, admin) -> None:

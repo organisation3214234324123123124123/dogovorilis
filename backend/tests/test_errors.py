@@ -33,9 +33,8 @@ def test_unknown_route_is_problem(client: TestClient) -> None:
     assert r.status_code == 404
     assert r.headers["content-type"].startswith(PROBLEM)
     body = r.json()
-    assert {"type", "title", "status", "detail", "instance"} <= body.keys()
+    assert {"type", "title", "status", "detail"} <= body.keys()
     assert body["status"] == 404
-    assert body["instance"] == "/api/v1/nope"
 
 
 def test_not_found_error(app_client: TestClient) -> None:
@@ -43,7 +42,6 @@ def test_not_found_error(app_client: TestClient) -> None:
     assert r.status_code == 404
     assert r.headers["content-type"].startswith(PROBLEM)
     assert r.json()["detail"] == "x"
-    assert r.json()["instance"] == "/_t/not-found"
 
 
 def test_conflict_error(app_client: TestClient) -> None:
@@ -58,3 +56,22 @@ def test_validation_error_is_422_problem(app_client: TestClient) -> None:
     assert r.status_code == 422
     assert r.headers["content-type"].startswith(PROBLEM)
     assert r.json()["status"] == 422
+
+
+def test_error_body_has_no_instance(client: TestClient) -> None:
+    assert "instance" not in client.get("/api/v1/nope").json()
+
+
+def test_link_error_body_does_not_leak_token(client: TestClient) -> None:
+    token = "leaktoken" + "x" * 30
+    r = client.get(f"/api/v1/p/{token}")
+    assert r.status_code >= 400
+    assert token not in r.text
+
+
+@pytest.mark.parametrize("suffix", ["items/00000000-0000-0000-0000-000000000000/accept", "nope"])
+def test_link_post_error_body_does_not_leak_token(client: TestClient, suffix: str) -> None:
+    token = "leaktoken" + "y" * 30
+    r = client.post(f"/api/v1/p/{token}/{suffix}")
+    assert r.status_code >= 400
+    assert token not in r.text

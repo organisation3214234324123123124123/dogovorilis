@@ -31,29 +31,31 @@ def post(client: TestClient, **body):
     return client.post(URL, json={"task": "parse", "text": "new text", **body}, headers=H)
 
 
-def test_post_without_token_is_forbidden(client: TestClient) -> None:
+def test_post_without_token_is_unauthorized(client: TestClient) -> None:
     resp = client.post(URL, json={"task": "parse", "text": "x"})
-    assert resp.status_code == 403
-    assert resp.json()["code"] == "ADMIN_FORBIDDEN"
+    assert resp.status_code == 401
+    assert resp.json()["code"] == "UNAUTHORIZED"
 
 
-def test_post_with_wrong_token_is_forbidden(client: TestClient) -> None:
+def test_post_with_wrong_token_is_unauthorized(client: TestClient) -> None:
     resp = client.post(
         URL, json={"task": "parse", "text": "x"}, headers={"X-Admin-Token": "x" * 32}
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
-def test_post_with_host_session_is_forbidden(authed: TestClient) -> None:
-    assert authed.post(URL, json={"task": "parse", "text": "x"}).status_code == 403
+def test_post_with_host_session_is_unauthorized(authed: TestClient) -> None:
+    assert authed.post(URL, json={"task": "parse", "text": "x"}).status_code == 401
 
 
-def test_post_disabled_admin(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_post_empty_admin_token_is_unauthorized(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("ADMIN_TOKEN", "")
     get_settings.cache_clear()
     resp = client.post(URL, json={"task": "parse", "text": "x"}, headers=H)
-    assert resp.status_code == 403
-    assert resp.json()["code"] == "ADMIN_DISABLED"
+    assert resp.status_code == 401
+    assert resp.json()["code"] == "UNAUTHORIZED"
 
 
 def test_post_without_text_is_422(client: TestClient) -> None:

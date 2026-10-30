@@ -158,3 +158,18 @@ def make_item_for(world: World, meeting) -> Item:
     from tests.factories import make_item
 
     return make_item(world.db, meeting)
+
+
+def test_due_in_past_points_at_due_date(authed: TestClient, world: World, draft) -> None:
+    _, item = draft
+    resp = patch(authed, item, {"due_date": "2026-10-14"})
+    assert resp.status_code == 422
+    assert [e["field"] for e in resp.json()["errors"]] == ["due_date"]
+    assert resp.json()["errors"][0]["message"]
+
+
+def test_not_a_participant_points_at_assignee(authed: TestClient, world: World, draft) -> None:
+    _, item = draft
+    resp = patch(authed, item, {"assignee_person_id": str(outsider(world).id)})
+    assert resp.status_code == 422
+    assert [e["field"] for e in resp.json()["errors"]] == ["assignee_person_id"]

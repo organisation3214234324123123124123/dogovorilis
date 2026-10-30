@@ -273,6 +273,23 @@ components:
       - failed_24h
       title: EmailQueueHealth
       type: object
+    FieldError:
+      properties:
+        field:
+          examples:
+          - due_date
+          title: Field
+          type: string
+        message:
+          examples:
+          - Срок не может быть в прошлом
+          title: Message
+          type: string
+      required:
+      - field
+      - message
+      title: FieldError
+      type: object
     GapRead:
       description: Пробел пункта (FR-20, FR-21). В пункте приходят только открытые.
       properties:
@@ -326,15 +343,6 @@ components:
       - vague_action
       title: GapType
       type: string
-    HTTPValidationError:
-      properties:
-        detail:
-          items:
-            $ref: '#/components/schemas/ValidationError'
-          title: Detail
-          type: array
-      title: HTTPValidationError
-      type: object
     Health:
       description: 'NFR-11. 200: ok или degraded; 503: БД или Redis недоступны (status=down).'
       properties:
@@ -932,6 +940,15 @@ components:
           examples:
           - Переход из done в pending запрещён
           title: Detail
+        errors:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/FieldError'
+            type: array
+          - type: 'null'
+          description: Ошибки по полям, только для 422 VALIDATION_ERROR и ошибок с
+            полем
+          title: Errors
         host_name:
           anyOf:
           - type: string
@@ -940,13 +957,14 @@ components:
           examples:
           - Мария Соколова
           title: Host Name
-        instance:
+        open_gaps:
           anyOf:
-          - type: string
+          - type: integer
           - type: 'null'
+          description: Только для GAPS_OPEN при рассылке
           examples:
-          - /api/v1/items/3f0c.../actions
-          title: Instance
+          - 2
+          title: Open Gaps
         status:
           examples:
           - 409
@@ -1497,13 +1515,23 @@ components:
           examples:
           - Переход из done в pending запрещён
           title: Detail
-        instance:
+        errors:
           anyOf:
-          - type: string
+          - items:
+              $ref: '#/components/schemas/FieldError'
+            type: array
           - type: 'null'
+          description: Ошибки по полям, только для 422 VALIDATION_ERROR и ошибок с
+            полем
+          title: Errors
+        open_gaps:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Только для GAPS_OPEN при рассылке
           examples:
-          - /api/v1/items/3f0c.../actions
-          title: Instance
+          - 2
+          title: Open Gaps
         status:
           examples:
           - 409
@@ -2249,32 +2277,6 @@ components:
       - created_at
       title: UserRead
       type: object
-    ValidationError:
-      properties:
-        ctx:
-          title: Context
-          type: object
-        input:
-          title: Input
-        loc:
-          items:
-            anyOf:
-            - type: string
-            - type: integer
-          title: Location
-          type: array
-        msg:
-          title: Message
-          type: string
-        type:
-          title: Error Type
-          type: string
-      required:
-      - loc
-      - msg
-      - type
-      title: ValidationError
-      type: object
   securitySchemes:
     APIKeyCookie:
       in: cookie
@@ -2350,20 +2352,19 @@ paths:
             text/csv:
               example: name,created_at,user_id,series_id,meeting_id,item_id,props
           description: Successful Response
-        '403':
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
             application/problem+json: {}
-          description: Нет или неверный X-Admin-Token (ADMIN_FORBIDDEN); ADMIN_TOKEN
-            не задан (ADMIN_DISABLED)
+          description: Нет или неверный X-Admin-Token, либо ADMIN_TOKEN не задан
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: &id001
+                $ref: '#/components/schemas/Problem'
+          description: Неверные данные; причина в поле code
       security:
       - AdminToken: []
       summary: Выгрузка событий в CSV
@@ -2384,14 +2385,13 @@ paths:
                 title: Response List Prompts Api V1 Admin Llm Prompts Get
                 type: array
           description: Successful Response
-        '403':
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
             application/problem+json: {}
-          description: Нет или неверный X-Admin-Token (ADMIN_FORBIDDEN); ADMIN_TOKEN
-            не задан (ADMIN_DISABLED)
+          description: Нет или неверный X-Admin-Token, либо ADMIN_TOKEN не задан
       security:
       - AdminToken: []
       summary: Версии промптов LLM
@@ -2414,20 +2414,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/PromptRead'
           description: Successful Response
-        '403':
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
             application/problem+json: {}
-          description: Нет или неверный X-Admin-Token (ADMIN_FORBIDDEN); ADMIN_TOKEN
-            не задан (ADMIN_DISABLED)
+          description: Нет или неверный X-Admin-Token, либо ADMIN_TOKEN не задан
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
       security:
       - AdminToken: []
@@ -2455,14 +2452,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/AnonymizeResult'
           description: Successful Response
-        '403':
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
             application/problem+json: {}
-          description: Нет или неверный X-Admin-Token (ADMIN_FORBIDDEN); ADMIN_TOKEN
-            не задан (ADMIN_DISABLED)
+          description: Нет или неверный X-Admin-Token, либо ADMIN_TOKEN не задан
         '404':
           content:
             application/json:
@@ -2472,10 +2468,9 @@ paths:
           description: Объекта нет или он чужой
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - AdminToken: []
       summary: Обезличить участника
@@ -2529,10 +2524,8 @@ paths:
           description: Серия в архиве (SERIES_ARCHIVED)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
@@ -2567,10 +2560,8 @@ paths:
           description: Неверный e-mail или пароль (UNAUTHORIZED)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
         '429':
           content:
@@ -2634,10 +2625,8 @@ paths:
           description: Successful Response
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
       summary: Запросить сброс пароля
       tags:
@@ -2664,10 +2653,8 @@ paths:
           description: Токен истёк или уже использован (LINK_EXPIRED)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
       summary: Задать новый пароль по токену
       tags:
@@ -2700,10 +2687,8 @@ paths:
           description: E-mail уже занят (EMAIL_TAKEN)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
       summary: Регистрация ведущего
       tags:
@@ -2743,10 +2728,8 @@ paths:
           description: Объекта нет или он чужой
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
         '429':
           content:
@@ -2829,17 +2812,9 @@ paths:
             недопустимый переход; SERIES_ARCHIVED - серия в архиве
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-        '428':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
-          description: Нет заголовка If-Match
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -2881,10 +2856,9 @@ paths:
           description: Объекта нет или он чужой
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -2954,18 +2928,9 @@ paths:
             недопустимый переход; SERIES_ARCHIVED - серия в архиве
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
-        '428':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
-          description: Нет заголовка If-Match
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -3035,18 +3000,9 @@ paths:
             в архиве (SERIES_ARCHIVED)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Исполнитель отсутствует или открыты пробелы (GAPS_OPEN, NOT_A_PARTICIPANT)
-        '428':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
-          description: Нет заголовка If-Match
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -3143,18 +3099,9 @@ paths:
             недопустимый переход; SERIES_ARCHIVED - серия в архиве
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
-        '428':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
-          description: Нет заголовка If-Match
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -3211,10 +3158,9 @@ paths:
           description: Серия в архиве (SERIES_ARCHIVED)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -3260,10 +3206,9 @@ paths:
           description: Объекта нет или он чужой
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -3306,10 +3251,9 @@ paths:
           description: Объекта нет или он чужой
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -3363,10 +3307,8 @@ paths:
           description: Серия в архиве (SERIES_ARCHIVED)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
@@ -3422,10 +3364,8 @@ paths:
           description: Серия в архиве (SERIES_ARCHIVED)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
@@ -3478,10 +3418,9 @@ paths:
           description: Встреча не идёт (MEETING_NOT_LIVE) или уже разослана (ALREADY_SENT)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -3540,10 +3479,8 @@ paths:
             (SERIES_ARCHIVED)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
         '429':
           content:
@@ -3595,10 +3532,9 @@ paths:
           description: Объекта нет или он чужой
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -3637,10 +3573,9 @@ paths:
           description: Объекта нет или он чужой
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -3698,10 +3633,8 @@ paths:
           description: Конфликт состояния; конкретная причина в поле code
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Остались пробелы, нужен confirm_open_gaps (GAPS_OPEN)
       security:
       - APIKeyCookie: []
@@ -3753,10 +3686,9 @@ paths:
           description: Встреча ещё идёт, итога нет (SUMMARY_NOT_READY)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -3821,10 +3753,9 @@ paths:
             имя ведущего
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
         '429':
           content:
             application/json:
@@ -3902,10 +3833,8 @@ paths:
             имя ведущего
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
         '429':
           content:
@@ -3991,10 +3920,8 @@ paths:
             имя ведущего
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
         '429':
           content:
@@ -4073,10 +4000,8 @@ paths:
             имя ведущего
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
         '429':
           content:
@@ -4161,10 +4086,8 @@ paths:
             имя ведущего
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
         '429':
           content:
@@ -4228,10 +4151,8 @@ paths:
           description: Нет сессии или она истекла
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
@@ -4274,10 +4195,9 @@ paths:
           description: Объекта нет или он чужой
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -4331,10 +4251,8 @@ paths:
           description: Серия в архиве (SERIES_ARCHIVED)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
@@ -4383,13 +4301,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
             application/problem+json: {}
-          description: Идёт встреча (MEETING_ALREADY_LIVE)
+          description: Идёт встреча (MEETING_IN_PROGRESS)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -4493,10 +4410,9 @@ paths:
           description: Объекта нет или он чужой
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -4541,10 +4457,9 @@ paths:
           description: Объекта нет или он чужой
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -4596,14 +4511,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
             application/problem+json: {}
-          description: Уже идёт встреча (MEETING_ALREADY_LIVE) или серия в архиве
-            (SERIES_ARCHIVED)
+          description: Уже идёт встреча (MEETING_IN_PROGRESS) или серия в архиве (SERIES_ARCHIVED)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -4648,10 +4561,9 @@ paths:
           description: Объекта нет или он чужой
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -4707,10 +4619,8 @@ paths:
           description: Серия в архиве (SERIES_ARCHIVED)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
+            application/problem+json:
+              schema: *id001
           description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
@@ -4764,10 +4674,9 @@ paths:
           description: Серия в архиве (SERIES_ARCHIVED)
         '422':
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []

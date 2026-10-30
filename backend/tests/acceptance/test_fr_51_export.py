@@ -36,32 +36,32 @@ def fetch(client: TestClient, headers: dict[str, str], **params) -> list[list[st
     return list(csv.reader(io.StringIO(resp.content.decode("utf-8"))))
 
 
-def test_without_token_is_admin_forbidden(client: TestClient, admin) -> None:
+def test_without_token_is_unauthorized(client: TestClient, admin) -> None:
     resp = client.get(URL)
-    assert resp.status_code == 403
-    assert resp.json()["code"] == "ADMIN_FORBIDDEN"
+    assert resp.status_code == 401
+    assert resp.json()["code"] == "UNAUTHORIZED"
 
 
-def test_wrong_token_is_admin_forbidden(client: TestClient, admin) -> None:
+def test_wrong_token_is_unauthorized(client: TestClient, admin) -> None:
     resp = client.get(URL, headers={"X-Admin-Token": "z" * 32})
-    assert resp.json()["code"] == "ADMIN_FORBIDDEN"
+    assert resp.json()["code"] == "UNAUTHORIZED"
 
 
-def test_host_session_is_admin_forbidden(client: TestClient, world: World, admin) -> None:
+def test_host_session_is_unauthorized(client: TestClient, world: World, admin) -> None:
     login_as(client, world.user)
     resp = client.get(URL)
-    assert resp.status_code == 403
-    assert resp.json()["code"] == "ADMIN_FORBIDDEN"
+    assert resp.status_code == 401
+    assert resp.json()["code"] == "UNAUTHORIZED"
 
 
-def test_empty_admin_token_is_admin_disabled(
+def test_empty_admin_token_is_unauthorized(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("ADMIN_TOKEN", "")
     get_settings.cache_clear()
     resp = client.get(URL, headers={"X-Admin-Token": TOKEN})
-    assert resp.status_code == 403
-    assert resp.json()["code"] == "ADMIN_DISABLED"
+    assert resp.status_code == 401
+    assert resp.json()["code"] == "UNAUTHORIZED"
 
 
 def test_content_type_is_csv_utf8(client: TestClient, admin) -> None:

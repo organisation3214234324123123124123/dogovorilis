@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter
 
 from app.core.db import SessionDep
-from app.core.errors import ADMIN_403, errors
+from app.core.errors import ADMIN_401, errors
 from app.core.security import AdminAccess, CurrentUser
 from app.modules.series import service
 from app.modules.series.schemas import (
@@ -90,7 +90,7 @@ def update_series(
     description="Серия остаётся для чтения, новые встречи в ней начать нельзя. Пока идёт встреча, "
     "архивировать нельзя. Повторный вызов - 200, дата архивации не меняется.",
     response_model=SeriesDetail,
-    responses=errors(401, 404, 409, notes={409: "Идёт встреча (MEETING_ALREADY_LIVE)"}),
+    responses=errors(401, 404, 409, notes={409: "Идёт встреча (MEETING_IN_PROGRESS)"}),
 )
 def archive_series(series_id: uuid.UUID, db: SessionDep, user: CurrentUser) -> SeriesDetail:
     return service.archive_series(db, user, series_id)
@@ -162,7 +162,7 @@ def list_meetings(series_id: uuid.UUID, db: SessionDep, user: CurrentUser) -> li
         401,
         404,
         409,
-        notes={409: "Уже идёт встреча (MEETING_ALREADY_LIVE) или серия в архиве (SERIES_ARCHIVED)"},
+        notes={409: "Уже идёт встреча (MEETING_IN_PROGRESS) или серия в архиве (SERIES_ARCHIVED)"},
     ),
 )
 def start_meeting(
@@ -318,7 +318,7 @@ def update_agenda_item(
     "комментарии чистятся, ссылки отзываются. Пункты и статистика остаются. Служебный "
     "доступ: `X-Admin-Token`.",
     response_model=AnonymizeResult,
-    responses=errors(403, 404, notes=ADMIN_403),
+    responses=errors(401, 404, notes=ADMIN_401),
 )
 def anonymize_person(person_id: uuid.UUID, db: SessionDep) -> AnonymizeResult:
     return service.anonymize_person(db, person_id)
