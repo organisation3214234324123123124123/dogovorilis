@@ -3432,8 +3432,8 @@ paths:
     post:
       description: 'Строка до 1000 символов. Пункт создаётся в draft, поля раскладываются
         правилами в панель уходят item.created и item.updated. Встреча должна быть
-        в live, closing или sent: пункт, добавленный после рассылки, уходит повторным
-        «Разослать» (OQ-02).'
+        в live, closing или sent: во встрече в sent пункт сразу создаётся как pending
+        и уходит исполнителю, повторной рассылки нет.'
       operationId: create_item_api_v1_meetings__meeting_id__items_post
       parameters:
       - in: path
@@ -3587,8 +3587,8 @@ paths:
     post:
       description: 'Переводит пункты из draft в pending/accepted, ставит в очередь
         письма SUMMARY и CONFIRM_REQUEST, выдаёт исполнителям ссылки. Повторное нажатие
-        писем не добавляет (BR-5). Встречу в sent можно разослать снова: уйдут только
-        новые draft-пункты, SUMMARY второй раз не отправляется (OQ-02).'
+        писем не добавляет (BR-5). Повторная рассылка ничего не отправляет: пункты,
+        добавленные после рассылки, сразу уходят исполнителю.'
       operationId: send_summary_api_v1_meetings__meeting_id__send_post
       parameters:
       - in: path

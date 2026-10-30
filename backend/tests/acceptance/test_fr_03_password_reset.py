@@ -205,3 +205,38 @@ def test_confirm_rejects_too_short_new_password(client: TestClient, world) -> No
     resp = confirm(client, "A" * 43, "short")
     assert resp.status_code == 422
     assert resp.json()["code"] == "VALIDATION_ERROR"
+
+
+def deliver_due(db: Session, monkeypatch, *, fail: bool = False) -> None:
+    from datetime import UTC, datetime
+
+    from app.modules.notifications import sender
+
+    def deliver(_mail) -> None:
+        if fail:
+            raise sender.TransientMailError("timeout")
+
+    monkeypatch.setattr(sender, "deliver", deliver)
+    sender.send_due(db, datetime.now(UTC) + timedelta(minutes=10))
+
+
+def test_payload_of_reset_mail_is_null_right_after_successful_send(
+    client: TestClient, world, db: Session, monkeypatch
+) -> None:
+    client.post(RESET, json={"email": world.user.email})
+    deliver_due(db, monkeypatch)
+    (mail,) = reset_mails(db, world.user)
+    db.refresh(mail)
+    assert mail.status == "sent"
+    assert mail.payload is None
+
+
+def test_payload_of_reset_mail_is_kept_when_send_failed_temporarily(
+    client: TestClient, world, db: Session, monkeypatch
+) -> None:
+    client.post(RESET, json={"email": world.user.email})
+    deliver_due(db, monkeypatch, fail=True)
+    (mail,) = reset_mails(db, world.user)
+    db.refresh(mail)
+    assert mail.status == "queued"
+    assert TOKEN_RE.findall(str(mail.payload))

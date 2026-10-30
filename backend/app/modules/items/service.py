@@ -49,6 +49,7 @@ from app.modules.items.schemas import (
     RescheduleAction,
 )
 from app.modules.live import service as live_service
+from app.modules.notifications import content
 from app.modules.notifications import service as notifications_service
 from app.modules.notifications.models import NotificationType
 from app.modules.notifications.service import CHANGED_FIELDS
@@ -384,6 +385,8 @@ def _accept_allowed(db: Session, item: Item) -> bool:
 def create_item(db: Session, user: User, meeting_id: uuid.UUID, body: ItemCreate) -> ItemRead:
     meeting, series = series_service.get_owned_meeting(db, user, meeting_id)
     series_service.archived_guard(series)
+    # ждём идущую рассылку (она держит FOR UPDATE) и читаем свежий статус
+    series_service.lock_meeting(db, meeting)
     if meeting.status == MeetingStatus.PLANNED:
         raise Conflict("Встреча ещё не началась", code="MEETING_NOT_LIVE")
     if body.agenda_item_id and not series_service.has_agenda_item(
@@ -426,6 +429,8 @@ def create_item(db: Session, user: User, meeting_id: uuid.UUID, body: ItemCreate
         db, "decision_captured", source="manual", fields_filled=filled, **_ids(user, item)
     )
     warning = _warn_overload(db, user, series, item, today)
+    if meeting.status == MeetingStatus.SENT:
+        send_item(db, user, item, series, datetime.now(UTC))
 
     read = _one(db, item, series.timezone)
     _emit(db, meeting.id, "item.updated", item, read.model_dump(mode="json"))
@@ -498,8 +503,7 @@ def update_item(
         )
         if due_changed:
             notifications_service.replan_due_tomorrow(db, item, series.timezone)
-            if item.assignee_person_id:
-                confirm_service.recalc_link_expiry(db, meeting.id, item.assignee_person_id)
+            _recalc_link(db, item)
     warning = _warn_overload(db, user, series, item, today) if assignee_changes else None
 
     read = _one(db, item, series.timezone)
@@ -654,18 +658,13 @@ def _journal_review(
     )
 
 
-def _notify_changed(db: Session, item: Item, now: datetime) -> None:
-    if item.assignee_person_id is None:
-        return
-    notifications_service.queue(
-        db,
-        NotificationType.ITEM_CHANGED,
-        item_id=item.id,
-        meeting_id=item.meeting_id,
-        person_id=item.assignee_person_id,
-        dedupe_key=f"{item.id}:ITEM_CHANGED:{item.version}",
-        scheduled_for=now,
-    )
+def _notify_changed(db: Session, item: Item, old: dict[str, object]) -> None:
+    notifications_service.queue_item_changed(db, item, old)
+
+
+def _recalc_link(db: Session, item: Item) -> None:
+    if item.assignee_person_id:
+        confirm_service.recalc_link_expiry(db, item.meeting_id, item.assignee_person_id)
 
 
 def _plan_reminder(db: Session, item: Item, tz: str, now: datetime) -> None:
@@ -773,10 +772,12 @@ def apply_action(
     if action == ItemAction.RESCHEDULED:
         notifications_service.cancel_due_reminder(db, item.id)
         _plan_reminder(db, item, series.timezone, now)
-        _notify_changed(db, item, now)
+        _notify_changed(db, item, {"due_date": due_from})
+        _recalc_link(db, item)
         extra = {"due_from": due_from, "due_to": item.due_date}
     elif action == ItemAction.REOPENED:
-        _notify_changed(db, item, now)
+        _notify_changed(db, item, {"status": status_from})
+        _recalc_link(db, item)
     elif action == ItemAction.REASSIGNED:
         _hand_over(db, item, series, assignee_from, now)
         extra = {"assignee_from": assignee_from, "assignee_to": item.assignee_person_id}
@@ -855,6 +856,49 @@ def send_draft(db: Session, user: User, item: Item, now: datetime) -> None:
     _journal(db, user, item, ItemAction.SENT)
 
 
+def send_item(db: Session, user: User, item: Item, series: Series, now: datetime) -> int:
+    """Отправка одного черновика: статус, ссылка, CONFIRM_REQUEST, повтор и DUE_TOMORROW.
+    Нужна и рассылке встречи, и пункту, добавленному в уже разосланную встречу (FR-28, FR-30).
+    """
+    send_draft(db, user, item, now)
+    person = item.assignee_person_id
+    if person is None:
+        return 0
+    link_id = confirm_service.ensure_link(db, person, item.meeting_id, now).id
+    queued = 0
+    if item.status == ItemStatus.PENDING:
+        queued += notifications_service.queue(
+            db,
+            NotificationType.CONFIRM_REQUEST,
+            item_id=item.id,
+            meeting_id=item.meeting_id,
+            person_id=person,
+            dedupe_key=f"{item.id}:CONFIRM_REQUEST:{person}:{item.version}",
+            scheduled_for=now,
+            payload=content.confirm_request(db, item, link_id),
+        )
+        queued += notifications_service.queue(
+            db,
+            NotificationType.CONFIRM_REPEAT,
+            item_id=None,
+            meeting_id=item.meeting_id,
+            person_id=person,
+            dedupe_key=f"{item.meeting_id}:CONFIRM_REPEAT:{person}",
+            scheduled_for=notifications_service.repeat_time(now, series.timezone),
+        )
+    return queued + notifications_service.plan_due_reminder(
+        db,
+        item_id=item.id,
+        meeting_id=item.meeting_id,
+        person_id=person,
+        due_date=item.due_date,
+        version=item.version,
+        tz=series.timezone,
+        now=now,
+        payload=content.due_tomorrow(db, item, link_id),
+    )
+
+
 def _check_new_due(item: Item, series: Series, due: date) -> None:
     if due < today_in(series.timezone):
         raise ValidationFailed("Срок не может быть в прошлом", code="DUE_IN_PAST", field="due_date")
@@ -903,7 +947,6 @@ def _answer(
         item.accepted_at = item.accepted_at or now
         return ItemAction.RESCHEDULED
     item.status = ItemStatus.DISPUTED
-    notifications_service.cancel_due_reminder(db, item.id)
     return ItemAction.DISPUTED
 
 

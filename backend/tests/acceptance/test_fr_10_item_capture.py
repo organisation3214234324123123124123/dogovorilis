@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.models import Item
+from app.modules.items.models import ItemStatus
 from app.modules.series.models import MeetingStatus
 from tests.acceptance.helpers_items import (
     API,
@@ -113,7 +114,9 @@ def test_items_can_be_added_in_live_closing_sent(
     make_ctx(world, status)
     resp = post_item(authed, world.meeting.id)
     assert resp.status_code == 201
-    assert resp.json()["status"] == "draft"
+    # после рассылки пункт сразу pending, до неё - draft
+    expected = "pending" if status == MeetingStatus.SENT else "draft"
+    assert resp.json()["status"] == expected
 
 
 def test_planned_meeting_is_409_meeting_not_live(authed: TestClient, world: World) -> None:
@@ -134,9 +137,14 @@ def test_decision_text_is_not_logged(
     assert "выгрузка клиентов" not in caplog.text
 
 
-def test_new_item_in_sent_meeting_is_draft_for_resend(authed: TestClient, world: World) -> None:
+def test_new_item_in_sent_meeting_is_pending_at_once_without_resend(
+    authed: TestClient, world: World
+) -> None:
     make_ctx(world, MeetingStatus.SENT)
     world.meeting.summary_sent_at = world.meeting.planned_start + timedelta(hours=1)
-    item_id = post_item(authed, world.meeting.id).json()["id"]
+    body = post_item(authed, world.meeting.id).json()
     world.db.expire_all()
-    assert world.db.get(Item, item_id).sent_at is None
+    item = world.db.get(Item, body["id"])
+    assert body["status"] == "pending"
+    assert item.status == ItemStatus.PENDING
+    assert item.sent_at is not None

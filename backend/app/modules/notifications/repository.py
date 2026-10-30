@@ -145,8 +145,8 @@ def claim_due(db: Session, now: datetime, limit: int) -> list[Notification]:
 def sent_count(
     db: Session, person_id: uuid.UUID, series_id: uuid.UUID, since: datetime, upto: datetime
 ) -> int:
-    """Письма человеку по серии за [since, upto] (BR-11). Строки одного письма (тот же тип и время)
-    считаются раз, дайджест отложенных - тоже одно письмо.
+    """Письма человеку по серии за [since, upto] (BR-11). Строки одного письма (тот же тип и время,
+    любая встреча) считаются раз, дайджест отложенных - тоже одно письмо.
     """
     where = (
         Notification.recipient_person_id == person_id,
@@ -165,9 +165,9 @@ def sent_count(
         )
         return db.scalar(select(func.count()).select_from(letters.subquery())) or 0
 
-    return count(
-        Notification.type, Notification.sent_at, Notification.meeting_id, postponed=False
-    ) + count(Notification.sent_at, postponed=True)
+    return count(Notification.type, Notification.sent_at, postponed=False) + count(
+        Notification.sent_at, postponed=True
+    )
 
 
 def clear_payload_before(db: Session, cutoff: datetime, limit: int) -> int:

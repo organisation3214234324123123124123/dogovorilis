@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, date, datetime, time
+from enum import Enum
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -179,7 +180,9 @@ def replan_due_tomorrow(db: Session, item: Item, tz: str) -> None:
 
 
 def _text(value: object) -> str | None:
-    return None if value is None else str(value)
+    if value is None:
+        return None
+    return str(value.value) if isinstance(value, Enum) else str(value)
 
 
 def queue_item_changed(db: Session, item: Item, old: dict[str, object]) -> None:
@@ -201,7 +204,13 @@ def queue_item_changed(db: Session, item: Item, old: dict[str, object]) -> None:
         changes[field] = {"from": first, "to": _text(getattr(item, field))}
     changes = {f: c for f, c in changes.items() if c["from"] != c["to"]}
     key = f"{item.id}:ITEM_CHANGED:{item.version}"
-    payload = {"item_id": str(item.id), "meeting_id": str(item.meeting_id), "changes": changes}
+    payload = {
+        "item_id": str(item.id),
+        "meeting_id": str(item.meeting_id),
+        "what": item.what or item.raw_text,
+        "changes": changes,
+        "buttons": content.open_buttons(item.id, NotificationType.ITEM_CHANGED),
+    }
     if row is not None:
         if not changes:
             row.status = NotificationStatus.CANCELLED

@@ -310,3 +310,24 @@ def test_reassigned_item_between_link_and_answer_is_403_not_your_item(ivan: Page
     assert resp.json()["code"] == "NOT_YOUR_ITEM"
     ivan.sc.world.db.refresh(ivan.sc.pending)
     assert ivan.sc.pending.status == ItemStatus.PENDING
+
+
+@pytest.mark.fr("FR-31")
+@pytest.mark.fr("FR-40")
+@pytest.mark.fr("BR-8")
+def test_decline_keeps_the_reminder_queued(ivan: Page) -> None:
+    assert ivan.act("decline", {"comment": "Этим занимается Анна"}).status_code == 200
+    (reminder,) = mails(ivan.sc.world.db, "DUE_TOMORROW", item_id=ivan.item.id)
+    assert reminder.status == NotificationStatus.QUEUED
+
+
+@pytest.mark.fr("FR-31")
+@pytest.mark.fr("FR-40")
+@pytest.mark.fr("BR-8")
+def test_disputed_item_still_gets_due_tomorrow_letter(ivan: Page, mailbox) -> None:
+    assert ivan.act("decline", {}).status_code == 200
+    (reminder,) = mails(ivan.sc.world.db, "DUE_TOMORROW", item_id=ivan.item.id)
+    mailbox.run(reminder.scheduled_for)
+    ivan.sc.world.db.refresh(reminder)
+    assert reminder.status == NotificationStatus.SENT
+    assert any(letter["subject"].startswith("Завтра срок") for letter in mailbox.to(ivan.sc.ivan))

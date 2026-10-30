@@ -39,7 +39,7 @@ STALE_STATUSES = {
         ItemStatus.DONE,
         ItemStatus.CANCELLED,
     ),
-    NotificationType.DUE_TOMORROW: (ItemStatus.DISPUTED, ItemStatus.DONE, ItemStatus.CANCELLED),
+    NotificationType.DUE_TOMORROW: (ItemStatus.DONE, ItemStatus.CANCELLED),
 }
 CLOSED = (ItemStatus.DONE, ItemStatus.CANCELLED)
 
@@ -138,6 +138,14 @@ def _prepare(db: Session, mail: Notification, now: datetime) -> bool:
             return _cancel(mail)
         link_id = confirm_service.ensure_link(db, person_id, mail.meeting_id, now).id
         mail.payload = content.confirm_repeat(db, mail.meeting_id, pending, link_id)
+    elif (
+        mail.type == NotificationType.ITEM_CHANGED
+        and mail.payload
+        and person_id
+        and mail.meeting_id
+    ):
+        link_id = confirm_service.ensure_link(db, person_id, mail.meeting_id, now).id
+        mail.payload = {**mail.payload, "link_id": str(link_id)}
     elif mail.payload is None and item is not None and person_id and mail.meeting_id:
         link_id = confirm_service.ensure_link(db, person_id, mail.meeting_id, now).id
         if mail.type == NotificationType.CONFIRM_REQUEST:
@@ -196,6 +204,8 @@ def _send_group(db: Session, group: list[Notification], now: datetime) -> bool:
         mail.sent_at = now
         mail.claimed_at = None
         mail.attempts += 1
+        if mail.type == NotificationType.PASSWORD_RESET:
+            mail.payload = None
         if mail.type == NotificationType.DUE_TOMORROW and mail.item_id and mail.meeting_id:
             _track_reminder(db, mail)
     return True
@@ -216,9 +226,9 @@ def send_due(db: Session, now: datetime) -> int:
 
     Созревшие строки захватываем (`sending`) и коммитим, так что почтовый сервер не вызывается под
     замком строки; каждое письмо коммитится отдельно. Строки одного типа для одного получателя
-    уходят одним письмом (BR-16). Четвёртое письмо за неделю по одной серии откладывается, а
-    отложенные позже уходят вместе одним (BR-11). Возвращает число строк, помеченных
-    отправленными.
+    уходят одним письмом независимо от встречи (BR-16). Четвёртое письмо за неделю по одной
+    серии откладывается, а отложенные позже уходят вместе одним (BR-11). Возвращает число строк,
+    помеченных отправленными.
     """
     repository.release_stuck(db, now - STUCK_AFTER)
     claimed = repository.claim_due(db, now, CLAIM_BATCH)
@@ -231,12 +241,10 @@ def send_due(db: Session, now: datetime) -> int:
         person = mail.recipient_person_id
         if person and series_id and mail.type != NotificationType.HOST_RESPONSE:
             key = (
-                ("digest", person, series_id)
-                if mail.postponed
-                else (mail.type, person, mail.meeting_id)
+                ("digest", person, series_id) if mail.postponed else (mail.type, person, series_id)
             )
         else:
-            key = (mail.type, mail.recipient_user_id, mail.meeting_id)
+            key = (mail.type, mail.recipient_user_id)
         letters[key].append(mail)
     db.commit()
     used: dict[tuple, int] = {}

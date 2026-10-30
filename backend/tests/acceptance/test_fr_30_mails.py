@@ -12,6 +12,7 @@ from app.models import AccessLink, Notification
 from app.modules.items.models import ItemStatus
 from app.modules.notifications.models import NotificationStatus
 from tests.acceptance.helpers_mailing import (  # noqa: F401
+    API,
     FRIDAY_ISO,
     TUESDAY,
     Scenario,
@@ -32,7 +33,7 @@ from tests.acceptance.helpers_mailing import (  # noqa: F401
     token_of,
     tokens_in,
 )
-from tests.factories import make_person
+from tests.factories import make_meeting, make_person
 
 
 def queue(sc: Scenario, kind: str, *, item=None, person=None, when=None, key=None, **kw):
@@ -598,3 +599,275 @@ def test_weekly_limit_counts_letters_of_the_current_run_and_postpones_into_one_d
     for mail in held:
         sc.world.db.refresh(mail)
         assert mail.status == NotificationStatus.SENT
+
+
+NEW_DUE = date(2030, 1, 29)
+
+
+def edit_item(host, item, body: dict):
+    return host.patch(f"{API}/items/{item.id}", json=body, headers={"If-Match": str(item.version)})
+
+
+def host_action(host, item, action: str, **body):
+    return host.post(
+        f"{API}/items/{item.id}/actions",
+        json={"action": action, **body},
+        headers={"If-Match": str(item.version)},
+    )
+
+
+def sent_pending(host, sc: Scenario):
+    send(host, sc.world)
+    sc.world.db.refresh(sc.pending)
+    return sc.pending
+
+
+def changed_letter(sc: Scenario, mailbox) -> dict:
+    (mail,) = mails(sc.world.db, "ITEM_CHANGED", item_id=sc.pending.id)
+    return mailbox.letter_for(mail)
+
+
+@pytest.mark.fr("FR-16")
+@pytest.mark.fr("FR-43")
+def test_item_changed_subject_has_item_what(host, sc: Scenario, mailbox) -> None:
+    item = sent_pending(host, sc)
+    assert edit_item(host, item, {"due_date": NEW_DUE.isoformat()}).status_code == 200
+    assert sc.pending.what in changed_letter(sc, mailbox)["subject"]
+
+
+@pytest.mark.fr("FR-16")
+def test_item_changed_subject_falls_back_to_raw_text(host, sc: Scenario, mailbox) -> None:
+    item = sent_pending(host, sc)
+    item.what = None
+    item.raw_text = "Иван выгрузит отчёт по оттоку к пятнице"
+    sc.world.db.flush()
+    assert edit_item(host, item, {"due_date": NEW_DUE.isoformat()}).status_code == 200
+    assert item.raw_text in changed_letter(sc, mailbox)["subject"]
+
+
+@pytest.mark.fr("FR-16")
+def test_item_changed_shows_due_as_before_to_after_in_dd_mm_yyyy(
+    host, sc: Scenario, mailbox
+) -> None:
+    item = sent_pending(host, sc)
+    assert edit_item(host, item, {"due_date": NEW_DUE.isoformat()}).status_code == 200
+    text = mailbox.text_of(changed_letter(sc, mailbox))
+    assert "Срок" in text
+    assert "25.01.2030" in text
+    assert "29.01.2030" in text
+    assert "due_date" not in text
+    assert "2030-01-25" not in text
+    assert "2030-01-29" not in text
+
+
+@pytest.mark.fr("FR-16")
+def test_item_changed_names_what_field_in_russian(host, sc: Scenario, mailbox) -> None:
+    item = sent_pending(host, sc)
+    old = item.what
+    assert edit_item(host, item, {"what": "Выгрузка отчёта по удержанию"}).status_code == 200
+    text = mailbox.text_of(changed_letter(sc, mailbox))
+    assert "Что сделать" in text
+    assert old in text
+    assert "Выгрузка отчёта по удержанию" in text
+    assert "what:" not in text
+
+
+@pytest.mark.fr("FR-16")
+def test_item_changed_names_done_criteria_field_in_russian(host, sc: Scenario, mailbox) -> None:
+    item = sent_pending(host, sc)
+    assert edit_item(host, item, {"done_criteria": "Отчёт в общей папке"}).status_code == 200
+    text = mailbox.text_of(changed_letter(sc, mailbox))
+    assert "Критерий готовности" in text
+    assert "Отчёт в общей папке" in text
+    assert "done_criteria" not in text
+
+
+@pytest.mark.fr("FR-16")
+@pytest.mark.fr("FR-30")
+def test_item_changed_has_working_link_button(host, sc: Scenario, mailbox) -> None:
+    item = sent_pending(host, sc)
+    assert edit_item(host, item, {"due_date": NEW_DUE.isoformat()}).status_code == 200
+    letter = changed_letter(sc, mailbox)
+    (token,) = set(mailbox.tokens(letter))
+    assert re.fullmatch(r"[A-Za-z0-9_-]{43}", token)
+    assert hash_is_stored(sc.world.db, token)
+    assert host.get(f"/api/v1/p/{token}").status_code == 200
+
+
+@pytest.mark.fr("FR-43")
+def test_reschedule_by_host_puts_what_changed_into_item_changed_payload(host, sc: Scenario) -> None:
+    item = sent_pending(host, sc)
+    assert host_action(host, item, "reschedule", due_date=NEW_DUE.isoformat()).status_code == 200
+    (mail,) = mails(sc.world.db, "ITEM_CHANGED", item_id=item.id)
+    assert mail.payload
+    assert mail.payload["changes"]
+    assert NEW_DUE.isoformat() in stored_payload(mail)
+
+
+@pytest.mark.fr("FR-43")
+def test_reschedule_by_host_letter_shows_old_and_new_due(host, sc: Scenario, mailbox) -> None:
+    item = sent_pending(host, sc)
+    assert host_action(host, item, "reschedule", due_date=NEW_DUE.isoformat()).status_code == 200
+    text = mailbox.text_of(changed_letter(sc, mailbox))
+    assert "Срок" in text
+    assert "25.01.2030" in text
+    assert "29.01.2030" in text
+
+
+@pytest.mark.fr("FR-42")
+def test_reopen_by_host_puts_what_changed_into_item_changed_payload(host, sc: Scenario) -> None:
+    item = sent_pending(host, sc)
+    item.status = ItemStatus.DONE
+    item.done_at = TUESDAY
+    sc.world.db.flush()
+    assert host_action(host, item, "reopen").status_code == 200
+    (mail,) = mails(sc.world.db, "ITEM_CHANGED", item_id=item.id)
+    assert mail.payload
+    assert mail.payload["changes"]
+
+
+@pytest.mark.fr("FR-42")
+def test_reopen_by_host_letter_has_item_what_in_subject(host, sc: Scenario, mailbox) -> None:
+    item = sent_pending(host, sc)
+    item.status = ItemStatus.DONE
+    item.done_at = TUESDAY
+    sc.world.db.flush()
+    assert host_action(host, item, "reopen").status_code == 200
+    assert item.what in changed_letter(sc, mailbox)["subject"]
+
+
+@pytest.mark.fr("FR-43")
+@pytest.mark.fr("BR-18")
+def test_reschedule_by_host_recalculates_link_expiry(host, sc: Scenario) -> None:
+    item = sent_pending(host, sc)
+    far = date(2030, 3, 1)
+    assert host_action(host, item, "reschedule", due_date=far.isoformat()).status_code == 200
+    (link,) = link_for(sc.world.db, sc.ivan, sc.world.meeting)
+    assert link.expires_at >= datetime(2030, 3, 31, tzinfo=UTC)
+
+
+@pytest.mark.fr("FR-42")
+@pytest.mark.fr("BR-18")
+def test_reopen_by_host_recalculates_link_expiry(host, sc: Scenario) -> None:
+    item = sent_pending(host, sc)
+    (link,) = link_for(sc.world.db, sc.ivan, sc.world.meeting)
+    before = link.expires_at
+    item.due_date = date(2030, 3, 1)
+    item.status = ItemStatus.DONE
+    item.done_at = TUESDAY
+    sc.world.db.flush()
+    assert host_action(host, item, "reopen").status_code == 200
+    sc.world.db.refresh(link)
+    assert link.expires_at > before
+    assert link.expires_at >= datetime(2030, 3, 31, tzinfo=UTC)
+
+
+@pytest.mark.fr("FR-40")
+@pytest.mark.fr("BR-8")
+def test_due_tomorrow_is_sent_for_disputed_item(sc: Scenario, monkeypatch) -> None:
+    from app.modules.notifications import sender
+
+    sc.pending.status = ItemStatus.DISPUTED
+    reminder = queue(sc, "DUE_TOMORROW", item=sc.pending, key="due-disputed")
+    sent, _ = _fake_deliver(monkeypatch)
+    sender.send_due(sc.world.db, TUESDAY)
+    sc.world.db.refresh(reminder)
+    assert reminder.status == NotificationStatus.SENT
+    assert [kind for kind, _ in sent] == ["DUE_TOMORROW"]
+
+
+@pytest.mark.fr("FR-40")
+@pytest.mark.fr("BR-8")
+@pytest.mark.parametrize("status", [ItemStatus.DONE, ItemStatus.CANCELLED])
+def test_due_tomorrow_is_still_cancelled_for_closed_item(
+    sc: Scenario, monkeypatch, status: ItemStatus
+) -> None:
+    from app.modules.notifications import sender
+
+    sc.pending.status = status
+    if status == ItemStatus.DONE:
+        sc.pending.done_at = TUESDAY
+    else:
+        sc.pending.cancelled_at = TUESDAY
+    sc.world.db.flush()
+    reminder = queue(sc, "DUE_TOMORROW", item=sc.pending, key=f"due-{status.value}")
+    sent, _ = _fake_deliver(monkeypatch)
+    sender.send_due(sc.world.db, TUESDAY)
+    sc.world.db.refresh(reminder)
+    assert reminder.status == NotificationStatus.CANCELLED
+    assert sent == []
+
+
+def queue_in(sc: Scenario, meeting, kind: str, key: str, person=None) -> Notification:
+    mail = Notification(
+        type=kind,
+        recipient_person_id=(person or sc.ivan).id,
+        meeting_id=meeting.id,
+        payload={"what": "x"},
+        dedupe_key=key,
+        scheduled_for=TUESDAY,
+        status=NotificationStatus.QUEUED,
+    )
+    sc.world.db.add(mail)
+    sc.world.db.flush()
+    return mail
+
+
+def more_meetings(sc: Scenario, count: int) -> list:
+    return [make_meeting(sc.world.db, sc.world.series) for _ in range(count)]
+
+
+@pytest.mark.fr("FR-30")
+@pytest.mark.fr("BR-16")
+def test_same_type_mails_of_one_recipient_from_two_meetings_go_out_as_one(
+    sc: Scenario, monkeypatch
+) -> None:
+    from app.modules.notifications import sender
+
+    (other,) = more_meetings(sc, 1)
+    first = queue_in(sc, sc.world.meeting, "ITEM_CHANGED", "grp-a")
+    second = queue_in(sc, other, "ITEM_CHANGED", "grp-b")
+    sent, _ = _fake_deliver(monkeypatch)
+    sender.send_due(sc.world.db, TUESDAY)
+    assert len(sent) == 1
+    assert len(sent[0][1]) == 2
+    for mail in (first, second):
+        sc.world.db.refresh(mail)
+        assert mail.status == NotificationStatus.SENT
+
+
+@pytest.mark.fr("FR-30")
+@pytest.mark.fr("BR-16")
+def test_different_types_and_recipients_stay_separate_letters(sc: Scenario, monkeypatch) -> None:
+    from app.modules.notifications import sender
+
+    (other,) = more_meetings(sc, 1)
+    queue_in(sc, sc.world.meeting, "ITEM_CHANGED", "sep-a")
+    queue_in(sc, other, "CONFIRM_REQUEST", "sep-b")
+    queue_in(sc, other, "ITEM_CHANGED", "sep-c", person=sc.anna)
+    sent, _ = _fake_deliver(monkeypatch)
+    sender.send_due(sc.world.db, TUESDAY)
+    assert len(sent) == 3
+
+
+@pytest.mark.fr("FR-30")
+@pytest.mark.fr("BR-11")
+@pytest.mark.fr("BR-16")
+def test_weekly_limit_counts_grouped_letters_not_rows(sc: Scenario, monkeypatch) -> None:
+    from app.modules.notifications import sender
+
+    for n in range(2):
+        old = queue(sc, "ITEM_CHANGED", item=sc.pending, key=f"week-old-{n}")
+        old.status = NotificationStatus.SENT
+        old.sent_at = TUESDAY - timedelta(days=1, hours=n)
+    rows = [
+        queue_in(sc, meeting, "ITEM_CHANGED", f"week-new-{n}")
+        for n, meeting in enumerate([sc.world.meeting, *more_meetings(sc, 2)])
+    ]
+    sent, _ = _fake_deliver(monkeypatch)
+    sender.send_due(sc.world.db, TUESDAY)
+    for mail in rows:
+        sc.world.db.refresh(mail)
+        assert mail.status == NotificationStatus.SENT
+        assert not mail.postponed
+    assert len(sent) == 1
