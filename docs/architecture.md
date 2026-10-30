@@ -62,6 +62,7 @@ erDiagram
   meetings ||--o{ meeting_participants : ""
   persons ||--o{ meeting_participants : ""
   meetings ||--o{ agenda_items : ""
+  meetings ||--o{ meeting_events : "панель, FR-14"
   meetings ||--o{ items : "родился на"
   series ||--o{ items : ""
   persons |o--o{ items : "исполнитель"
@@ -78,6 +79,12 @@ erDiagram
 ```
 - `items`: статус `draft → pending/accepted → done`, `disputed`, `cancelled`; просрочка вычисляется. `version` для `If-Match`.
 - `access_links` / `access_link_tokens`: токены ссылки случайные, хранятся только SHA-256 (UNIQUE); у письма свой токен, все они действуют, пока жива ссылка (FR-30).
+
+## Догрузка событий панели (FR-14)
+- Каждое событие панели получает номер: `live.service.publish_after_commit` в транзакции изменения делает `UPDATE meetings SET events_version = events_version + 1 ... RETURNING` и пишет строку в `meeting_events`. Строка встречи заблокирована до commit, поэтому номера идут подряд в порядке commit.
+- Кадр сервера несёт номер события в `version`, версия пункта лежит в `data.version` (`If-Match`). `GET /meetings/{id}` отдаёт `events_version` - с него клиент начинает.
+- Клиент после каждого подключения шлёт `{"type": "resync", "since_version": n}` и получает события после `n` по порядку, затем живые кадры без повторов. Если `n` не целое, больше текущего или уже вычищено, приходит один кадр `resync.reset`: клиент перечитывает `GET /meetings/{id}`.
+- Журнал чистит Beat через 30 дней после отправки итогов (или после `planned_end`). При обезличивании (FR-52) имя и email убираются и из `data` журнала.
 
 ## Режим разработки
 Служебное (`/auth/token`, демо-данные, `app.demo`) включает только `DEV_MODE`, по умолчанию он выключен; подробности — в «Быстром старте» и «Развёртывании на сервере» корневого [README](../README.md).

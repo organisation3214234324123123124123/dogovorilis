@@ -988,7 +988,7 @@ components:
       title: LinkExpiredProblem
       type: object
     LiveEvent:
-      description: Сообщение сервера в WS /ws/meetings/{id} (FR-14).
+      description: Сообщение сервера в WS /api/v1/ws/meetings/{id} (FR-14).
       properties:
         data:
           anyOf:
@@ -996,7 +996,8 @@ components:
             type: object
           - items: {}
             type: array
-          description: ItemRead (версия пункта в data.version) или список GapRead
+          description: ItemRead (версия пункта в data.version); для gaps.updated -
+            {item_id, gaps}, gaps - список GapRead
           title: Data
         event:
           description: То же, что type
@@ -2310,8 +2311,8 @@ info:
 
     Изменение пункта идёт с заголовком `If-Match: <version>`.
 
-    Живая панель работает по WebSocket `/ws/meetings/{id}`, сообщения описаны схемой
-    `LiveEvent`.
+    Живая панель работает по WebSocket `/api/v1/ws/meetings/{id}`, сообщения описаны
+    схемой `LiveEvent`.
 
     '
   title: Договорились API

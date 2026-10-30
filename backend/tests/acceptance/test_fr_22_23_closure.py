@@ -232,7 +232,7 @@ def test_closure_matches_agenda_in_a_task_and_publishes_agenda_updated(
     monkeypatch.setattr(series_service, "get_llm_client", lambda: fake)
     # задача открывает свою сессию; в тесте она работает в той же транзакции, что и запрос
     monkeypatch.setattr(series_tasks, "SessionLocal", lambda **_: _task_session(world.db))
-    with host.websocket_connect(f"/ws/meetings/{world.meeting.id}") as ws:
+    with host.websocket_connect(f"/api/v1/ws/meetings/{world.meeting.id}") as ws:
         assert open_closure(host, world).status_code == 200
         assert len(fake.calls) == 1  # без этой проверки ожидание кадра повисло бы
         frames = []

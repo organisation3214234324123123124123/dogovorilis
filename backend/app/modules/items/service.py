@@ -285,6 +285,10 @@ def parse_if_match(value: str | None) -> int:
         raise ValidationFailed("If-Match должен содержать номер версии", field="If-Match") from exc
 
 
+def _gaps_data(item: Item, read: ItemRead) -> dict[str, object]:
+    return {"item_id": str(item.id), "gaps": [g.model_dump(mode="json") for g in read.gaps]}
+
+
 def _emit(
     db: Session,
     meeting_id: uuid.UUID,
@@ -425,7 +429,7 @@ def create_item(db: Session, user: User, meeting_id: uuid.UUID, body: ItemCreate
 
     read = _one(db, item, series.timezone)
     _emit(db, meeting.id, "item.updated", item, read.model_dump(mode="json"))
-    _emit(db, meeting.id, "gaps.updated", item, [g.model_dump(mode="json") for g in read.gaps])
+    _emit(db, meeting.id, "gaps.updated", item, _gaps_data(item, read))
     read.overload_warning = warning
     return read
 
@@ -500,7 +504,7 @@ def update_item(
 
     read = _one(db, item, series.timezone)
     _emit(db, meeting.id, "item.updated", item, read.model_dump(mode="json"))
-    _emit(db, meeting.id, "gaps.updated", item, [g.model_dump(mode="json") for g in read.gaps])
+    _emit(db, meeting.id, "gaps.updated", item, _gaps_data(item, read))
     read.overload_warning = warning
     return read
 
@@ -523,7 +527,7 @@ def dismiss_gap(db: Session, user: User, item_id: uuid.UUID, gap_id: uuid.UUID) 
         raise NotFound("Пробел не найден")
     if gaps_service.dismiss(db, item, gap):
         read = _one(db, item, series.timezone)
-        _emit(db, meeting.id, "gaps.updated", item, [g.model_dump(mode="json") for g in read.gaps])
+        _emit(db, meeting.id, "gaps.updated", item, _gaps_data(item, read))
         return read
     return _one(db, item, series.timezone)
 
