@@ -74,9 +74,13 @@ expect "/auth/me с cookie" 200 ".email == \"$EMAIL\""
 
 # --- серия и участники ---
 req POST "$API/series" \
-  '{"title":"Смоук-серия","planned_duration_min":30,"members":[{"full_name":"Иван Петров","email":"ivan-smoke@example.com","organization_name":"Команда"}]}'
+  '{"title":"Смоук-серия","timezone":"Europe/Moscow","planned_duration_min":30}'
 expect "создание серии" 201 '.id != null'
 SERIES_ID="$(field .id)"
+
+req POST "$API/series/$SERIES_ID/members" \
+  '{"full_name":"Иван Петров","email":"ivan-smoke@example.com","organization_name":"Команда"}'
+expect "добавление первого участника" 201
 
 req POST "$API/series/$SERIES_ID/members" \
   '{"full_name":"Анна Смирнова","email":"anna-smoke@example.com","organization_name":"Команда"}'

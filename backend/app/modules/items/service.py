@@ -301,10 +301,9 @@ def list_series_items(
     *,
     status: list[ItemStatus] | None,
     assignee_person_id: uuid.UUID | None,
-    meeting_id: uuid.UUID | None,
     overdue: bool,
-    limit: int,
-    offset: int,
+    page: int,
+    page_size: int,
 ) -> ItemPage:
     series = series_service.get_owned_series(db, user, series_id)
     today = today_in(series.timezone)
@@ -313,10 +312,9 @@ def list_series_items(
         series.id,
         status=status,
         assignee_person_id=assignee_person_id,
-        meeting_id=meeting_id,
         overdue_before=today if overdue else None,
-        limit=limit,
-        offset=offset,
+        limit=page_size,
+        offset=(page - 1) * page_size,
     )
     on_time, due_total = repository.on_time_counts(
         db,
@@ -329,9 +327,7 @@ def list_series_items(
     return ItemPage(
         items=to_reads(db, items, series.timezone),
         total=total,
-        limit=limit,
-        offset=offset,
-        on_time_share_30d=round(on_time / due_total, 4) if due_total else None,
+        on_time_rate_30d=round(on_time / due_total, 4) if due_total else None,
     )
 
 

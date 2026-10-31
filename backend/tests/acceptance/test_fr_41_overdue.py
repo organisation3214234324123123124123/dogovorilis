@@ -40,15 +40,19 @@ def test_open_item_with_past_due_is_overdue(
         assert overdue_flags(authed, world)[str(item.id)] is True
 
 
-@pytest.mark.parametrize(
-    "status", [ItemStatus.DONE, ItemStatus.CANCELLED, ItemStatus.DISPUTED, ItemStatus.DRAFT]
-)
+@pytest.mark.parametrize("status", [ItemStatus.DONE, ItemStatus.CANCELLED, ItemStatus.DISPUTED])
 def test_other_statuses_are_never_overdue(
     authed: TestClient, world: World, status: ItemStatus
 ) -> None:
     item = make(world, status, YESTERDAY)
     with frozen(authed, world.user, NOW):
         assert overdue_flags(authed, world)[str(item.id)] is False
+
+
+def test_draft_is_not_in_series_items(authed: TestClient, world: World) -> None:
+    item = make(world, ItemStatus.DRAFT, YESTERDAY)
+    with frozen(authed, world.user, NOW):
+        assert str(item.id) not in overdue_flags(authed, world)
 
 
 def test_due_today_is_not_overdue(authed: TestClient, world: World) -> None:

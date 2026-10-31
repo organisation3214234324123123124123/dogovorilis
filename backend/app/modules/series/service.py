@@ -48,6 +48,7 @@ from app.modules.series.schemas import (
     MeetingUpdate,
     MemberCreate,
     MemberRead,
+    OrganizationRead,
     ParticipantRead,
     ReviewRead,
     SendRequest,
@@ -127,27 +128,12 @@ def _reads(db: Session, series: list[Series]) -> list[SeriesRead]:
     ]
 
 
-def list_series(db: Session, user: User) -> list[SeriesRead]:
-    return _reads(db, repository.list_series(db, user.id))
+def list_series(db: Session, user: User, status: SeriesStatus) -> list[SeriesRead]:
+    return _reads(db, repository.list_series(db, user.id, status))
 
 
 def _members(db: Session, series: Series) -> list[MemberRead]:
-    rows = repository.members(db, series.id)
-    loads = items_service.open_counts(
-        db, [p.id for p, _ in rows], items_service.today_in(series.timezone)
-    )
-    return [
-        MemberRead(
-            person_id=p.id,
-            full_name=p.full_name,
-            email=p.email,
-            organization_id=o.id,
-            organization_name=o.name,
-            is_own_side=o.is_own,
-            open_items=loads.get(p.id, 0),
-        )
-        for p, o in rows
-    ]
+    return [_member_read(p, o) for p, o in repository.members(db, series.id)]
 
 
 def get_series(db: Session, user: User, series_id: uuid.UUID) -> SeriesDetail:
@@ -246,9 +232,7 @@ def _member_read(person: Person, org: Organization) -> MemberRead:
         person_id=person.id,
         full_name=person.full_name,
         email=person.email,
-        organization_id=org.id,
-        organization_name=org.name,
-        is_own_side=org.is_own,
+        organization=OrganizationRead(id=org.id, name=org.name, is_own=org.is_own),
     )
 
 
@@ -265,14 +249,13 @@ def create_series(db: Session, user: User, body: SeriesCreate) -> SeriesDetail:
             capture_mode=body.capture_mode,
         ),
     )
-    added = [_upsert_member(db, user, series, m) for m in body.members]
     analytics_service.track(
         db,
         "series_created",
         user_id=user.id,
         series_id=series.id,
-        members_count=len({p.id for p, _ in added}),
-        has_external=any(not org.is_own for _, org in added),
+        members_count=0,
+        has_external=False,
     )
     return get_series(db, user, series.id)
 
@@ -282,6 +265,8 @@ def update_series(
 ) -> SeriesDetail:
     series = get_owned_series(db, user, series_id)
     archived_guard(series)
+    if body.capture_mode == CaptureMode.AUDIO:
+        raise ValidationFailed("Режим audio появится на этапе 3", field="capture_mode")  # OQ-15
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(series, field, value)
     db.flush()

@@ -63,8 +63,7 @@ def test_members(authed: TestClient, w: World) -> None:
     (member,) = resp.json()
     assert member["person_id"] == str(w.person.id)
     assert member["full_name"] == w.person.full_name
-    assert member["organization_name"] == w.org.name
-    assert member["is_own_side"] is True
+    assert member["organization"] == {"id": str(w.org.id), "name": w.org.name, "is_own": True}
 
 
 @pytest.mark.fr("FR-05")
@@ -76,7 +75,7 @@ def test_members_of_other_organization(authed: TestClient, w: World) -> None:
     members = {
         m["full_name"]: m for m in authed.get(f"/api/v1/series/{w.series.id}/members").json()
     }
-    assert members["Partner Person"]["is_own_side"] is False
+    assert members["Partner Person"]["organization"]["is_own"] is False
 
 
 def test_series_meetings(authed: TestClient, w: World) -> None:
@@ -136,30 +135,18 @@ def test_series_items_filter_by_status(authed: TestClient, w: World) -> None:
 @pytest.mark.fr("FR-44")
 def test_series_items_filter_by_multiple_statuses(authed: TestClient, w: World) -> None:
     a = w.item(status=ItemStatus.PENDING, sent_at=NOW)
-    b = w.item()
+    b = w.item(status=ItemStatus.ACCEPTED, sent_at=NOW)
+    w.item(status=ItemStatus.DONE, sent_at=NOW, done_at=NOW)
     resp = authed.get(
-        f"/api/v1/series/{w.series.id}/items", params={"status": ["pending", "draft"]}
+        f"/api/v1/series/{w.series.id}/items", params={"status": ["pending", "accepted"]}
     )
     assert ids(resp) == {str(a.id), str(b.id)}
 
 
 @pytest.mark.fr("FR-44")
-def test_series_items_filter_by_meeting(authed: TestClient, w: World) -> None:
-    other = make_meeting(w.db, w.series, planned_start=NOW)
-    mine = w.item()
-    from tests.factories import make_item
-
-    make_item(w.db, other)
-    resp = authed.get(
-        f"/api/v1/series/{w.series.id}/items", params={"meeting_id": str(w.meeting.id)}
-    )
-    assert ids(resp) == {str(mine.id)}
-
-
-@pytest.mark.fr("FR-44")
 def test_series_items_filter_by_assignee(authed: TestClient, w: World) -> None:
-    mine = w.item(assignee_person_id=w.person.id)
-    w.item()
+    mine = w.item(assignee_person_id=w.person.id, status=ItemStatus.PENDING, sent_at=NOW)
+    w.item(status=ItemStatus.PENDING, sent_at=NOW)
     resp = authed.get(
         f"/api/v1/series/{w.series.id}/items", params={"assignee_person_id": str(w.person.id)}
     )
@@ -191,15 +178,14 @@ def test_series_items_filters_combine(authed: TestClient, w: World) -> None:
 @pytest.mark.fr("FR-44")
 def test_series_items_pagination(authed: TestClient, w: World) -> None:
     for _ in range(3):
-        w.item()
-    body = authed.get(f"/api/v1/series/{w.series.id}/items", params={"limit": 2}).json()
+        w.item(status=ItemStatus.PENDING, sent_at=NOW)
+    body = authed.get(f"/api/v1/series/{w.series.id}/items", params={"page_size": 2}).json()
     assert len(body["items"]) == 2
     assert body["total"] == 3
-    assert body["limit"] == 2
 
 
 @pytest.mark.fr("FR-44")
-def test_on_time_share_30d_matches_srs_example(authed: TestClient, w: World) -> None:
+def test_on_time_rate_30d_matches_srs_example(authed: TestClient, w: World) -> None:
     def done(due_days_ago: int, done_days_ago: int) -> None:
         w.item(
             status=ItemStatus.DONE,
@@ -221,13 +207,13 @@ def test_on_time_share_30d_matches_srs_example(authed: TestClient, w: World) -> 
     w.item(due_date=TODAY - timedelta(days=3))
     resp = authed.get(f"/api/v1/series/{w.series.id}/items")
     assert resp.status_code == 200
-    assert resp.json()["on_time_share_30d"] == pytest.approx(2 / 3, abs=1e-3)
+    assert resp.json()["on_time_rate_30d"] == pytest.approx(2 / 3, abs=1e-3)
 
 
 @pytest.mark.fr("FR-44")
 def test_on_time_share_is_null_without_items(authed: TestClient, w: World) -> None:
     resp = authed.get(f"/api/v1/series/{w.series.id}/items")
-    assert resp.json()["on_time_share_30d"] is None
+    assert resp.json()["on_time_rate_30d"] is None
 
 
 @pytest.mark.fr("FR-44")
@@ -240,4 +226,4 @@ def test_on_time_share_respects_assignee_filter(authed: TestClient, w: World) ->
     resp = authed.get(
         f"/api/v1/series/{w.series.id}/items", params={"assignee_person_id": str(w.person.id)}
     )
-    assert resp.json()["on_time_share_30d"] == 1.0
+    assert resp.json()["on_time_rate_30d"] == 1.0

@@ -688,17 +688,7 @@ components:
             $ref: '#/components/schemas/ItemRead'
           title: Items
           type: array
-        limit:
-          examples:
-          - 50
-          title: Limit
-          type: integer
-        offset:
-          examples:
-          - 0
-          title: Offset
-          type: integer
-        on_time_share_30d:
+        on_time_rate_30d:
           anyOf:
           - type: number
           - type: 'null'
@@ -707,7 +697,7 @@ components:
             снятых. Учитывает фильтр по исполнителю. null - таких пунктов нет'
           examples:
           - 0.67
-          title: On Time Share 30D
+          title: On Time Rate 30D
         total:
           examples:
           - 42
@@ -716,8 +706,6 @@ components:
       required:
       - items
       - total
-      - limit
-      - offset
       title: ItemPage
       type: object
     ItemRead:
@@ -1392,27 +1380,8 @@ components:
           - Иван Петров
           title: Full Name
           type: string
-        is_own_side:
-          description: Своя сторона ведущего
-          title: Is Own Side
-          type: boolean
-        open_items:
-          default: 0
-          description: Открытые пункты со сроком в ближайшие 7 дней, по всем сериям
-            ведущего (FR-26)
-          examples:
-          - 3
-          title: Open Items
-          type: integer
-        organization_id:
-          format: uuid
-          title: Organization Id
-          type: string
-        organization_name:
-          examples:
-          - Команда продукта
-          title: Organization Name
-          type: string
+        organization:
+          $ref: '#/components/schemas/OrganizationRead'
         person_id:
           format: uuid
           title: Person Id
@@ -1420,10 +1389,29 @@ components:
       required:
       - person_id
       - full_name
-      - organization_id
-      - organization_name
-      - is_own_side
+      - organization
       title: MemberRead
+      type: object
+    OrganizationRead:
+      properties:
+        id:
+          format: uuid
+          title: Id
+          type: string
+        is_own:
+          description: Своя сторона ведущего
+          title: Is Own
+          type: boolean
+        name:
+          examples:
+          - Команда продукта
+          title: Name
+          type: string
+      required:
+      - id
+      - name
+      - is_own
+      title: OrganizationRead
       type: object
     ParticipantPresence:
       properties:
@@ -1994,12 +1982,6 @@ components:
           $ref: '#/components/schemas/CaptureMode'
           default: manual
           description: Способ записи решений
-        members:
-          description: Стартовый состав
-          items:
-            $ref: '#/components/schemas/MemberCreate'
-          title: Members
-          type: array
         planned_duration_min:
           description: Плановая длительность, минут
           examples:
@@ -2009,7 +1991,6 @@ components:
           title: Planned Duration Min
           type: integer
         timezone:
-          default: Europe/Moscow
           description: Пояс IANA
           examples:
           - Europe/Moscow
@@ -2024,6 +2005,7 @@ components:
           type: string
       required:
       - title
+      - timezone
       - planned_duration_min
       title: SeriesCreate
       type: object
@@ -2071,7 +2053,7 @@ components:
           title: Members Count
           type: integer
         open_items_count:
-          description: Пункты серии в pending и accepted
+          description: Пункты серии в pending, accepted и disputed
           examples:
           - 8
           title: Open Items Count
@@ -2146,7 +2128,7 @@ components:
           title: Members Count
           type: integer
         open_items_count:
-          description: Пункты серии в pending и accepted
+          description: Пункты серии в pending, accepted и disputed
           examples:
           - 8
           title: Open Items Count
@@ -2190,6 +2172,11 @@ components:
     SeriesUpdate:
       additionalProperties: false
       properties:
+        capture_mode:
+          anyOf:
+          - $ref: '#/components/schemas/CaptureMode'
+          - type: 'null'
+          description: Способ записи решений
         load_warning_threshold:
           anyOf:
           - minimum: 1.0
@@ -4126,8 +4113,18 @@ paths:
       - public-link
   /api/v1/series:
     get:
-      description: Только серии текущего ведущего, вместе с архивными; сначала новые.
+      description: 'Серии текущего ведущего: по умолчанию активные, `status=archived`
+        - архив; сначала новые.'
       operationId: list_series_api_v1_series_get
+      parameters:
+      - description: active или archived
+        in: query
+        name: status
+        required: false
+        schema:
+          $ref: '#/components/schemas/SeriesStatus'
+          default: active
+          description: active или archived
       responses:
         '200':
           content:
@@ -4145,6 +4142,11 @@ paths:
                 $ref: '#/components/schemas/Problem'
             application/problem+json: {}
           description: Нет сессии или она истекла
+        '422':
+          content:
+            application/problem+json:
+              schema: *id001
+          description: Неверные данные; причина в поле code
       security:
       - APIKeyCookie: []
       - OAuth2PasswordBearer: []
@@ -4340,9 +4342,9 @@ paths:
       - series
   /api/v1/series/{series_id}/items:
     get:
-      description: История пунктов серии. Фильтры по статусу, исполнителю, встрече
-        и просрочке; сначала новые. Пагинация limit/offset. `on_time_share_30d` -
-        доля сделанного в срок за 30 дней.
+      description: История пунктов серии. Фильтры по статусу, исполнителю и просрочке;
+        черновики не показываются; сначала новые. Пагинация page/page_size. `on_time_rate_30d`
+        - доля сделанного в срок за 30 дней.
       operationId: series_items_api_v1_series__series_id__items_get
       parameters:
       - in: path
@@ -4375,17 +4377,6 @@ paths:
           - type: 'null'
           description: Только пункты этого исполнителя
           title: Assignee Person Id
-      - description: Только пункты этой встречи
-        in: query
-        name: meeting_id
-        required: false
-        schema:
-          anyOf:
-          - format: uuid
-            type: string
-          - type: 'null'
-          description: Только пункты этой встречи
-          title: Meeting Id
       - description: Только просроченные
         in: query
         name: overdue
@@ -4396,21 +4387,21 @@ paths:
           title: Overdue
           type: boolean
       - in: query
-        name: limit
+        name: page
+        required: false
+        schema:
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
         required: false
         schema:
           default: 50
-          maximum: 200
+          maximum: 100
           minimum: 1
-          title: Limit
-          type: integer
-      - in: query
-        name: offset
-        required: false
-        schema:
-          default: 0
-          minimum: 0
-          title: Offset
+          title: Page Size
           type: integer
       responses:
         '200':

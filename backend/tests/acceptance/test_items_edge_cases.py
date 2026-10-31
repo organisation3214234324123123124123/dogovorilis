@@ -71,7 +71,7 @@ def post_item(client: TestClient, meeting_id, text: str = "Иван сделае
 
 
 @pytest.mark.fr("FR-26")
-def test_members_list_returns_open_items_per_person(authed: TestClient, world: World) -> None:
+def test_members_list_has_no_open_items(authed: TestClient, world: World) -> None:
     ctx = make_ctx(world)
     load(world, ctx.ivan, 3)
     load(world, ctx.ivan, 1, status=ItemStatus.ACCEPTED)
@@ -79,9 +79,7 @@ def test_members_list_returns_open_items_per_person(authed: TestClient, world: W
     load(world, ctx.ivan, 1, due=TODAY + timedelta(days=30))
     resp = authed.get(f"{API}/series/{world.series.id}/members")
     assert resp.status_code == 200
-    counts = {m["person_id"]: m["open_items"] for m in resp.json()}
-    assert counts[str(ctx.ivan.id)] == 4
-    assert counts[str(ctx.anna.id)] == 0
+    assert all("open_items" not in m for m in resp.json())
 
 
 @pytest.mark.fr("FR-26")

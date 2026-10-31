@@ -40,7 +40,9 @@ def test_archived_series_cannot_start_meeting(authed: TestClient, world: World) 
 def test_archived_series_listed_with_status_and_readable(authed: TestClient, world: World) -> None:
     world.series.status = SeriesStatus.ARCHIVED
     world.db.flush()
-    listed = {s["id"]: s for s in authed.get("/api/v1/series").json()}
+    listed = {
+        s["id"]: s for s in authed.get("/api/v1/series", params={"status": "archived"}).json()
+    }
     assert listed[str(world.series.id)]["status"] == "archived"
     assert authed.get(f"/api/v1/series/{world.series.id}").status_code == 200
 
