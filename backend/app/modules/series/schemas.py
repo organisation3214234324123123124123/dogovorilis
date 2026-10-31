@@ -36,28 +36,26 @@ class MemberCreate(BaseModel):
     )
 
 
+class OrganizationRead(BaseModel):
+    id: uuid.UUID
+    name: str = Field(examples=["Команда продукта"])
+    is_own: bool = Field(description="Своя сторона ведущего")
+
+
 class MemberRead(BaseModel):
     person_id: uuid.UUID
     full_name: str = Field(examples=["Иван Петров"])
     email: str | None = Field(
         None, description="null после обезличивания", examples=["ivan@example.com"]
     )
-    organization_id: uuid.UUID
-    organization_name: str = Field(examples=["Команда продукта"])
-    is_own_side: bool = Field(description="Своя сторона ведущего")
-    open_items: int = Field(
-        0,
-        description="Открытые пункты со сроком в ближайшие 7 дней, по всем сериям ведущего (FR-26)",
-        examples=[3],
-    )
+    organization: OrganizationRead
 
 
 class SeriesCreate(BaseModel):
     title: Title
-    timezone: TimeZone = "Europe/Moscow"
+    timezone: TimeZone
     planned_duration_min: Duration
     capture_mode: CaptureMode = Field(CaptureMode.MANUAL, description="Способ записи решений")
-    members: list[MemberCreate] = Field(default_factory=list, description="Стартовый состав")
 
 
 class SeriesUpdate(BaseModel):
@@ -66,6 +64,7 @@ class SeriesUpdate(BaseModel):
     title: Title | None = None
     timezone: TimeZone | None = None
     planned_duration_min: Duration | None = None
+    capture_mode: CaptureMode | None = Field(None, description="Способ записи решений")
     load_warning_threshold: int | None = Field(
         None, ge=1, description="Порог предупреждения о перегрузке, по умолчанию 5 (FR-26.7)"
     )
@@ -86,7 +85,9 @@ class SeriesRead(BaseModel):
         "показать предупреждение (BR-9)",
         examples=[5],
     )
-    open_items_count: int = Field(description="Пункты серии в pending и accepted", examples=[8])
+    open_items_count: int = Field(
+        description="Пункты серии в pending, accepted и disputed", examples=[8]
+    )
     members_count: int = Field(examples=[4])
     active_meeting_id: uuid.UUID | None = Field(
         None, description="Встреча в live или closing, если идёт"

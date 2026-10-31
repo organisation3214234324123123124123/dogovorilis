@@ -26,7 +26,7 @@ def w(world: World, client: TestClient):
 def share(client: TestClient, w: World, **params) -> float | None:
     resp = client.get(f"/api/v1/series/{w.series.id}/items", params=params)
     assert resp.status_code == 200
-    return resp.json()["on_time_share_30d"]
+    return resp.json()["on_time_rate_30d"]
 
 
 def done_item(w: World, due: date, done_at: datetime):

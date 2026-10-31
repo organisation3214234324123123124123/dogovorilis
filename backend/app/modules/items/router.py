@@ -198,9 +198,9 @@ def item_action(
 @router.get(
     "/series/{series_id}/items",
     summary="Пункты серии",
-    description="История пунктов серии. Фильтры по статусу, исполнителю, встрече и просрочке; "
-    "сначала новые. Пагинация limit/offset. `on_time_share_30d` - доля сделанного в срок "
-    "за 30 дней.",
+    description="История пунктов серии. Фильтры по статусу, исполнителю и просрочке; черновики "
+    "не показываются; сначала новые. Пагинация page/page_size. `on_time_rate_30d` - доля "
+    "сделанного в срок за 30 дней.",
     response_model=ItemPage,
     responses=errors(401, 404),
 )
@@ -214,10 +214,9 @@ def series_items(
     assignee_person_id: Annotated[
         uuid.UUID | None, Query(description="Только пункты этого исполнителя")
     ] = None,
-    meeting_id: Annotated[uuid.UUID | None, Query(description="Только пункты этой встречи")] = None,
     overdue: Annotated[bool, Query(description="Только просроченные")] = False,
-    limit: Annotated[int, Query(ge=1, le=200)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> ItemPage:
     return service.list_series_items(
         db,
@@ -225,8 +224,7 @@ def series_items(
         series_id,
         status=status,
         assignee_person_id=assignee_person_id,
-        meeting_id=meeting_id,
         overdue=overdue,
-        limit=limit,
-        offset=offset,
+        page=page,
+        page_size=page_size,
     )

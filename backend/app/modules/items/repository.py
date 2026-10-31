@@ -150,16 +150,13 @@ def _series_filter(
     series_id: uuid.UUID,
     status: list[ItemStatus] | None,
     assignee_person_id: uuid.UUID | None,
-    meeting_id: uuid.UUID | None,
     overdue_before: date | None,
 ) -> Select:
-    stmt = select(Item).where(Item.series_id == series_id)
+    stmt = select(Item).where(Item.series_id == series_id, Item.status != ItemStatus.DRAFT)
     if status:
         stmt = stmt.where(Item.status.in_(status))
     if assignee_person_id:
         stmt = stmt.where(Item.assignee_person_id == assignee_person_id)
-    if meeting_id:
-        stmt = stmt.where(Item.meeting_id == meeting_id)
     if overdue_before:
         stmt = stmt.where(Item.status.in_(OPEN_STATUSES), Item.due_date < overdue_before)
     return stmt
@@ -171,12 +168,11 @@ def list_for_series(
     *,
     status: list[ItemStatus] | None,
     assignee_person_id: uuid.UUID | None,
-    meeting_id: uuid.UUID | None,
     overdue_before: date | None,
     limit: int,
     offset: int,
 ) -> tuple[list[Item], int]:
-    stmt = _series_filter(series_id, status, assignee_person_id, meeting_id, overdue_before)
+    stmt = _series_filter(series_id, status, assignee_person_id, overdue_before)
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     page = stmt.order_by(Item.created_at.desc(), Item.id).limit(limit).offset(offset)
     return list(db.scalars(page)), total
@@ -268,10 +264,13 @@ def open_counts(
     return {person_id: count for person_id, count in db.execute(stmt)}
 
 
+SERIES_OPEN_STATUSES = (*OPEN_STATUSES, ItemStatus.DISPUTED)
+
+
 def open_counts_by_series(db: Session, series_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
     stmt = (
         select(Item.series_id, func.count())
-        .where(Item.series_id.in_(series_ids), Item.status.in_(OPEN_STATUSES))
+        .where(Item.series_id.in_(series_ids), Item.status.in_(SERIES_OPEN_STATUSES))
         .group_by(Item.series_id)
     )
     return {sid: n for sid, n in db.execute(stmt)}

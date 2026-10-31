@@ -1,11 +1,13 @@
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.core.db import SessionDep
 from app.core.errors import ADMIN_401, errors
 from app.core.security import AdminAccess, CurrentUser
 from app.modules.series import service
+from app.modules.series.models import SeriesStatus
 from app.modules.series.schemas import (
     AgendaItemCreate,
     AgendaItemRead,
@@ -36,12 +38,17 @@ _ARCHIVED = {409: "Серия в архиве (SERIES_ARCHIVED)"}
     "/series",
     tags=["series"],
     summary="Мои серии",
-    description="Только серии текущего ведущего, вместе с архивными; сначала новые.",
+    description="Серии текущего ведущего: по умолчанию активные, `status=archived` - архив; "
+    "сначала новые.",
     response_model=list[SeriesRead],
     responses=errors(401),
 )
-def list_series(db: SessionDep, user: CurrentUser) -> list[SeriesRead]:
-    return service.list_series(db, user)
+def list_series(
+    db: SessionDep,
+    user: CurrentUser,
+    status: Annotated[SeriesStatus, Query(description="active или archived")] = SeriesStatus.ACTIVE,
+) -> list[SeriesRead]:
+    return service.list_series(db, user, status)
 
 
 @router.post(

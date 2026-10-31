@@ -105,13 +105,9 @@ def test_patch_validation(authed: TestClient, world: World, patch: dict) -> None
 
 
 def test_series_created_event(authed: TestClient, world: World) -> None:
-    members = [
-        {"full_name": "Свой", "email": "own@example.com", "organization_name": world.org.name},
-        {"full_name": "Чужой", "email": "ext@example.org", "organization_name": "Внешние"},
-    ]
-    resp = authed.post("/api/v1/series", json={**BODY, "members": members})
+    resp = authed.post("/api/v1/series", json=BODY)
     assert resp.status_code == 201
     events = events_named(world.db, "series_created", series_id=resp.json()["id"])
     assert len(events) == 1
-    assert events[0].props["members_count"] == 2
-    assert events[0].props["has_external"] is True
+    assert events[0].props["members_count"] == 0
+    assert events[0].props["has_external"] is False

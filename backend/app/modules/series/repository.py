@@ -21,8 +21,12 @@ from app.modules.series.models import (
 ACTIVE_MEETING = (MeetingStatus.LIVE, MeetingStatus.CLOSING)
 
 
-def list_series(db: Session, owner_id: uuid.UUID) -> list[Series]:
-    stmt = select(Series).where(Series.owner_user_id == owner_id).order_by(Series.created_at.desc())
+def list_series(db: Session, owner_id: uuid.UUID, status: SeriesStatus) -> list[Series]:
+    stmt = (
+        select(Series)
+        .where(Series.owner_user_id == owner_id, Series.status == status)
+        .order_by(Series.created_at.desc())
+    )
     return list(db.scalars(stmt))
 
 

@@ -86,13 +86,13 @@ def test_list_members_shows_name_email_and_side(authed: TestClient, world: World
     assert resp.status_code == 200
     by_id = {m["person_id"]: m for m in resp.json()}
     own = by_id[str(world.person.id)]
-    assert (own["full_name"], own["email"], own["is_own_side"]) == (
+    assert (own["full_name"], own["email"], own["organization"]["is_own"]) == (
         world.person.full_name,
         world.person.email,
         True,
     )
-    assert by_id[str(outsider.id)]["organization_name"] == "Партнёры"
-    assert by_id[str(outsider.id)]["is_own_side"] is False
+    assert by_id[str(outsider.id)]["organization"]["name"] == "Партнёры"
+    assert by_id[str(outsider.id)]["organization"]["is_own"] is False
 
 
 def test_delete_member_removes_membership_only(authed: TestClient, world: World) -> None:

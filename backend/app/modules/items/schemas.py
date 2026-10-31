@@ -119,9 +119,7 @@ class ItemCard(ItemRead):
 class ItemPage(BaseModel):
     items: list[ItemRead]
     total: int = Field(examples=[42])
-    limit: int = Field(examples=[50])
-    offset: int = Field(examples=[0])
-    on_time_share_30d: float | None = Field(
+    on_time_rate_30d: float | None = Field(
         None,
         description="Доля сделанного в срок за 30 дней (FR-44): пункты со сроком в последние "
         "30 дней, сделанные не позже срока, / все такие пункты, кроме снятых. Учитывает фильтр "
