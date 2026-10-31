@@ -58,3 +58,12 @@ def default_question(
         case GapType.VAGUE_ACTION:
             text = "Что будет результатом?"
     return text[:QUESTION_LIMIT]
+
+
+def question_for(
+    stored: str | None, gap_type: GapType, *, name: str | None, due_text: str | None
+) -> str:
+    """Вопрос пробела для ответа API: свой, если есть, иначе шаблон; всегда не длиннее 120."""
+    if stored and stored.strip():
+        return stored.strip()[:QUESTION_LIMIT]
+    return default_question(gap_type, name=name, due_text=due_text)

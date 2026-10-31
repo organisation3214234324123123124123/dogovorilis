@@ -118,7 +118,7 @@ def test_item_history_lists_events_in_order(authed: TestClient, w: World) -> Non
     make_event(w.db, item, action=ItemAction.UPDATED, actor_type=ActorType.HOST)
     resp = authed.get(f"/api/v1/items/{item.id}/history")
     assert resp.status_code == 200
-    events = resp.json()
+    events = resp.json()["events"]
     assert sorted(e["action"] for e in events) == ["created", "updated"]
     assert all(e["actor_type"] == "host" for e in events)
 

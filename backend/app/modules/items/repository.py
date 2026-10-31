@@ -13,6 +13,7 @@ from app.modules.items.models import OPEN_STATUSES, Item, ItemComment, ItemEvent
 from app.modules.series.models import (
     Meeting,
     MeetingParticipant,
+    Organization,
     Person,
     Series,
     SeriesStatus,
@@ -98,6 +99,26 @@ def persons(db: Session, ids: Iterable[uuid.UUID | None]) -> dict[uuid.UUID, Per
     if not wanted:
         return {}
     return {p.id: p for p in db.scalars(select(Person).where(Person.id.in_(wanted)))}
+
+
+def external_person_ids(db: Session, ids: Iterable[uuid.UUID]) -> set[uuid.UUID]:
+    wanted = set(ids)
+    if not wanted:
+        return set()
+    stmt = (
+        select(Person.id)
+        .join(Organization, Organization.id == Person.organization_id)
+        .where(Person.id.in_(wanted), Organization.is_own.is_(False))
+    )
+    return set(db.scalars(stmt))
+
+
+def load_thresholds(db: Session, series_ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, int | None]:
+    wanted = set(series_ids)
+    if not wanted:
+        return {}
+    stmt = select(Series.id, Series.load_warning_threshold).where(Series.id.in_(wanted))
+    return {sid: threshold for sid, threshold in db.execute(stmt)}
 
 
 def present_pairs(db: Session, items: Iterable[Item]) -> set[tuple[uuid.UUID, uuid.UUID]]:
@@ -195,6 +216,15 @@ def events(db: Session, item_id: uuid.UUID) -> list[ItemEvent]:
     return list(db.scalars(stmt))
 
 
+def events_page(
+    db: Session, item_id: uuid.UUID, *, before_id: int | None, limit: int
+) -> list[ItemEvent]:
+    stmt = select(ItemEvent).where(ItemEvent.item_id == item_id)
+    if before_id is not None:
+        stmt = stmt.where(ItemEvent.id < before_id)
+    return list(db.scalars(stmt.order_by(ItemEvent.id.desc()).limit(limit)))
+
+
 def last_comment(db: Session, item_id: uuid.UUID) -> ItemComment | None:
     stmt = (
         select(ItemComment)
@@ -216,34 +246,10 @@ def delete(db: Session, item: Item) -> None:
     db.flush()
 
 
-def open_load(
-    db: Session,
-    owner_id: uuid.UUID,
-    person_id: uuid.UUID,
-    *,
-    due_from: date,
-    due_to: date,
-    exclude_item_id: uuid.UUID,
-) -> int:
-    stmt = (
-        select(func.count())
-        .select_from(Item)
-        .join(Series, Series.id == Item.series_id)
-        .where(
-            Series.owner_user_id == owner_id,
-            Item.assignee_person_id == person_id,
-            Item.status.in_(OPEN_STATUSES),
-            Item.due_date.between(due_from, due_to),
-            Item.id != exclude_item_id,
-        )
-    )
-    return db.scalar(stmt) or 0
-
-
 def open_counts(
     db: Session, person_ids: Iterable[uuid.UUID], *, due_from: date, due_to: date
 ) -> dict[uuid.UUID, int]:
-    """То же для списка людей, но по сериям ведущего, которому они принадлежат (BR-9)."""
+    """Открытые пункты (pending, accepted) людей со сроком в окне, по сериям их ведущего (BR-9)."""
     ids = list(person_ids)
     if not ids:
         return {}

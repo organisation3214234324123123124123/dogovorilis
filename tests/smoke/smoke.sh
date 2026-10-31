@@ -94,7 +94,7 @@ MEETING_ID="$(field .meeting.id)"
 
 req POST "$API/meetings/$MEETING_ID/items" '{"raw_text":"Ивану подготовить отчёт к пятнице"}'
 expect "пункт строкой: разобран исполнитель и срок" 201 \
-  ".assignee.id == \"$IVAN_ID\" and .due_date != null and .status == \"draft\" and .version == 1"
+  ".assignee.person_id == \"$IVAN_ID\" and .due_date != null and .status == \"draft\" and .version == 1"
 ITEM_ID="$(field .id)"
 VERSION="$(field .version)"
 

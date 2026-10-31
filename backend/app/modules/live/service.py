@@ -130,9 +130,9 @@ def anonymize_person_events(
 ) -> int:
     """Убирает имя и email человека из data кадров журнала, подставляя `alias` (FR-52).
 
-    Структурные поля (id, version, status, source, даты) не меняются. Объект `{id, full_name}`
-    с id человека получает `alias` независимо от текста. В свободном тексте заменяются целым
-    словом без учёта регистра полное имя, его части от 3 символов и email целиком.
+    Структурные поля (id, version, status, source, даты) не меняются. Объект с `id` или
+    `person_id` человека и `full_name` получает `alias` независимо от текста. В свободном тексте
+    заменяются целым словом без учёта регистра полное имя, его части от 3 символов и email целиком.
     Строки журнала остаются на месте (номера не меняются). Возвращает число изменённых кадров.
     """
     name = " ".join(full_name.split())
@@ -154,7 +154,7 @@ def anonymize_person_events(
         if isinstance(value, list):
             return [scrub(v, free) for v in value]
         if isinstance(value, dict):
-            mine = value.get("id") == pid and "full_name" in value
+            mine = pid in (value.get("id"), value.get("person_id")) and "full_name" in value
             out: dict[str, Any] = {}
             for k, v in value.items():
                 if mine and k == "full_name":

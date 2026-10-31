@@ -134,6 +134,14 @@ components:
           format: date-time
           title: At
           type: string
+        comment:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Комментарий исполнителя
+          examples:
+          - Демо проводит Анна
+          title: Comment
         due_date:
           anyOf:
           - format: date
@@ -142,16 +150,13 @@ components:
           description: Новый срок для reschedule
           title: Due Date
         kind:
-          $ref: '#/components/schemas/CommentKind'
-          description: reschedule - новый срок, not_mine - «Это не моё»
-        text:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: Комментарий исполнителя
-          examples:
-          - Демо проводит Анна
-          title: Text
+          enum:
+          - accept
+          - reschedule
+          - not_mine
+          - done
+          title: Kind
+          type: string
       required:
       - kind
       - at
@@ -213,12 +218,6 @@ components:
       - button
       - timer
       title: ClosureTrigger
-      type: string
-    CommentKind:
-      enum:
-      - not_mine
-      - reschedule
-      title: CommentKind
       type: string
     DeclineRequest:
       properties:
@@ -307,13 +306,12 @@ components:
           title: Id
           type: string
         question:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: Готовый вопрос ведущему, до 120 символов
+          description: Готовый вопрос ведущему; если своего нет, подставляется шаблон
           examples:
-          - Иван, к какому сроку?
+          - Иван, к какому числу?
+          maxLength: 120
           title: Question
+          type: string
         source:
           $ref: '#/components/schemas/GapSource'
           description: rule - правило, llm - нейросеть
@@ -325,6 +323,7 @@ components:
       - id
       - type
       - source
+      - question
       - detected_at
       title: GapRead
       type: object
@@ -426,9 +425,22 @@ components:
             type: string
           - type: 'null'
           title: Agenda Item Id
+        allowed_actions:
+          description: Что ведущий может сделать с пунктом в текущем статусе
+          items:
+            enum:
+            - edit
+            - done
+            - reschedule
+            - cancel
+            - reassign
+            - reopen
+            type: string
+          title: Allowed Actions
+          type: array
         assignee:
           anyOf:
-          - $ref: '#/components/schemas/PersonBrief'
+          - $ref: '#/components/schemas/PersonRef'
           - type: 'null'
           description: Исполнитель; null - не назначен
         can_accept_in_meeting:
@@ -498,7 +510,12 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AssigneeResponse'
           - type: 'null'
-          description: 'Последний ответ исполнителя: новый срок или «не моё» с комментарием'
+          description: Последний ответ исполнителя по ссылке
+        load_warning:
+          anyOf:
+          - $ref: '#/components/schemas/LoadWarning'
+          - type: 'null'
+          description: null - нет исполнителя или нагрузка ниже порога серии
         manual_fields:
           description: Поля, правленные ведущим руками; LLM их не трогает (BR-15)
           examples:
@@ -515,11 +532,6 @@ components:
           format: date-time
           title: Meeting Planned Start
           type: string
-        overload_warning:
-          anyOf:
-          - $ref: '#/components/schemas/OverloadWarning'
-          - type: 'null'
-          description: Только в ответе на создание и правку пункта
         raw_text:
           description: Исходная строка ведущего
           examples:
@@ -590,6 +602,7 @@ components:
       - updated_at
       - series_title
       - meeting_planned_start
+      - allowed_actions
       title: ItemCard
       type: object
     ItemCreate:
@@ -650,6 +663,23 @@ components:
       - data
       - created_at
       title: ItemEventRead
+      type: object
+    ItemHistory:
+      properties:
+        events:
+          items:
+            $ref: '#/components/schemas/ItemEventRead'
+          title: Events
+          type: array
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Передать в cursor за следующей страницей; null - это конец
+          title: Next Cursor
+      required:
+      - events
+      title: ItemHistory
       type: object
     ItemPage:
       properties:
@@ -717,7 +747,7 @@ components:
           title: Agenda Item Id
         assignee:
           anyOf:
-          - $ref: '#/components/schemas/PersonBrief'
+          - $ref: '#/components/schemas/PersonRef'
           - type: 'null'
           description: Исполнитель; null - не назначен
         can_accept_in_meeting:
@@ -783,6 +813,11 @@ components:
           description: Срок прошёл, а пункт в pending или accepted
           title: Is Overdue
           type: boolean
+        load_warning:
+          anyOf:
+          - $ref: '#/components/schemas/LoadWarning'
+          - type: 'null'
+          description: null - нет исполнителя или нагрузка ниже порога серии
         manual_fields:
           description: Поля, правленные ведущим руками; LLM их не трогает (BR-15)
           examples:
@@ -795,11 +830,6 @@ components:
           format: uuid
           title: Meeting Id
           type: string
-        overload_warning:
-          anyOf:
-          - $ref: '#/components/schemas/OverloadWarning'
-          - type: 'null'
-          description: Только в ответе на создание и правку пункта
         raw_text:
           description: Исходная строка ведущего
           examples:
@@ -1072,6 +1102,20 @@ components:
       - agenda
       title: LlmTask
       type: string
+    LoadWarning:
+      description: У исполнителя набралось открытых пунктов не меньше порога серии
+        (BR-9). Не запрет.
+      properties:
+        open_items:
+          description: Пункты в pending и accepted со сроком в ближайшие 7 дней
+          examples:
+          - 5
+          title: Open Items
+          type: integer
+      required:
+      - open_items
+      title: LoadWarning
+      type: object
     LoginRequest:
       properties:
         email:
@@ -1381,25 +1425,6 @@ components:
       - is_own_side
       title: MemberRead
       type: object
-    OverloadWarning:
-      description: У исполнителя уже слишком много открытых пунктов (BR-9). Назначение
-        не блокируется.
-      properties:
-        open_items:
-          examples:
-          - 5
-          title: Open Items
-          type: integer
-        threshold:
-          examples:
-          - 5
-          title: Threshold
-          type: integer
-      required:
-      - open_items
-      - threshold
-      title: OverloadWarning
-      type: object
     ParticipantPresence:
       properties:
         person_id:
@@ -1475,30 +1500,26 @@ components:
       - email
       title: PasswordResetRequest
       type: object
-    PersonBrief:
+    PersonRef:
       properties:
         full_name:
           examples:
           - Иван Петров
           title: Full Name
           type: string
-        id:
+        is_external:
+          description: Из чужой организации, не своя сторона ведущего
+          title: Is External
+          type: boolean
+        person_id:
           format: uuid
-          title: Id
+          title: Person Id
           type: string
-        open_items:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          description: Пункты в pending/accepted со сроком в ближайшие 7 дней, по
-            всем сериям ведущего
-          examples:
-          - 3
-          title: Open Items
       required:
-      - id
+      - person_id
       - full_name
-      title: PersonBrief
+      - is_external
+      title: PersonRef
       type: object
     Problem:
       description: Ошибка в формате RFC 9457 (application/problem+json).
@@ -3178,8 +3199,8 @@ paths:
       - items
   /api/v1/items/{item_id}/history:
     get:
-      description: 'Журнал item_events: кто, что, когда. Доступен только ведущему
-        - владельцу серии.'
+      description: 'Журнал item_events: кто, что, когда, сначала новые. Только владельцу
+        серии.'
       operationId: item_history_api_v1_items__item_id__history_get
       parameters:
       - in: path
@@ -3189,15 +3210,31 @@ paths:
           format: uuid
           title: Item Id
           type: string
+      - description: next_cursor прошлой страницы
+        in: query
+        name: cursor
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: next_cursor прошлой страницы
+          title: Cursor
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
       responses:
         '200':
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/ItemEventRead'
-                title: Response Item History Api V1 Items  Item Id  History Get
-                type: array
+                $ref: '#/components/schemas/ItemHistory'
           description: Successful Response
         '401':
           content:

@@ -139,4 +139,4 @@ def test_member_added_from_panel_can_be_assignee(authed: TestClient, world: Worl
         headers={"If-Match": str(item.version)},
     )
     assert resp.status_code == 200
-    assert resp.json()["assignee"]["id"] == created.json()["person_id"]
+    assert resp.json()["assignee"]["person_id"] == created.json()["person_id"]

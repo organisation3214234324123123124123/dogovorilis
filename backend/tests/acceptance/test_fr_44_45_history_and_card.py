@@ -129,7 +129,7 @@ def test_card_last_response_is_not_mine_with_comment(client: TestClient, w: Worl
     comment(w, item, CommentKind.NOT_MINE, "Это к Анне", NOW - timedelta(hours=1))
     last = client.get(f"/api/v1/items/{item.id}").json()["last_response"]
     assert last["kind"] == "not_mine"
-    assert last["text"] == "Это к Анне"
+    assert last["comment"] == "Это к Анне"
 
 
 @pytest.mark.fr("FR-45")
@@ -139,7 +139,7 @@ def test_card_last_response_is_the_latest_comment(client: TestClient, w: World) 
     comment(w, item, CommentKind.RESCHEDULE, "Новый", NOW - timedelta(hours=1))
     last = client.get(f"/api/v1/items/{item.id}").json()["last_response"]
     assert last["kind"] == "reschedule"
-    assert last["text"] == "Новый"
+    assert last["comment"] == "Новый"
 
 
 @pytest.mark.fr("FR-45")
@@ -155,13 +155,13 @@ def test_card_is_overdue_flag(client: TestClient, w: World) -> None:
 
 
 @pytest.mark.fr("FR-45")
-def test_history_is_ordered_by_time(client: TestClient, w: World) -> None:
+def test_history_is_ordered_newest_first(client: TestClient, w: World) -> None:
     item = w.item()
-    make_event(w.db, item, action=ItemAction.UPDATED, created_at=NOW - timedelta(hours=1))
     make_event(w.db, item, action=ItemAction.CREATED, created_at=NOW - timedelta(hours=3))
     make_event(w.db, item, action=ItemAction.SENT, created_at=NOW - timedelta(hours=2))
-    actions = [e["action"] for e in client.get(f"/api/v1/items/{item.id}/history").json()]
-    assert actions == ["created", "sent", "updated"]
+    make_event(w.db, item, action=ItemAction.UPDATED, created_at=NOW - timedelta(hours=1))
+    actions = [e["action"] for e in client.get(f"/api/v1/items/{item.id}/history").json()["events"]]
+    assert actions == ["updated", "sent", "created"]
 
 
 @pytest.mark.fr("FR-45")
@@ -175,7 +175,7 @@ def test_history_shows_actor_name_data_and_time(client: TestClient, w: World) ->
         actor_person_id=w.person.id,
         data={"status_from": "pending", "status_to": "done"},
     )
-    event = client.get(f"/api/v1/items/{item.id}/history").json()[0]
+    event = client.get(f"/api/v1/items/{item.id}/history").json()["events"][0]
     assert event["actor_type"] == "assignee"
     assert event["actor_name"] == w.person.full_name
     assert event["data"] == {"status_from": "pending", "status_to": "done"}
@@ -186,7 +186,7 @@ def test_history_shows_actor_name_data_and_time(client: TestClient, w: World) ->
 def test_history_of_host_actor_has_host_name(client: TestClient, w: World) -> None:
     item = w.item()
     make_event(w.db, item, actor_type=ActorType.HOST, actor_user_id=w.user.id)
-    event = client.get(f"/api/v1/items/{item.id}/history").json()[0]
+    event = client.get(f"/api/v1/items/{item.id}/history").json()["events"][0]
     assert event["actor_name"] == w.user.full_name
 
 

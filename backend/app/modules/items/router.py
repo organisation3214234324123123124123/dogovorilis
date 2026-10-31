@@ -13,7 +13,7 @@ from app.modules.items.schemas import (
     ItemActionRequest,
     ItemCard,
     ItemCreate,
-    ItemEventRead,
+    ItemHistory,
     ItemPage,
     ItemRead,
     ItemUpdate,
@@ -108,12 +108,18 @@ def delete_item(
 @router.get(
     "/items/{item_id}/history",
     summary="История пункта",
-    description="Журнал item_events: кто, что, когда. Доступен только ведущему - владельцу серии.",
-    response_model=list[ItemEventRead],
+    description="Журнал item_events: кто, что, когда, сначала новые. Только владельцу серии.",
+    response_model=ItemHistory,
     responses=errors(401, 404),
 )
-def item_history(item_id: uuid.UUID, db: SessionDep, user: CurrentUser) -> list[ItemEventRead]:
-    return service.history(db, user, item_id)
+def item_history(
+    item_id: uuid.UUID,
+    db: SessionDep,
+    user: CurrentUser,
+    cursor: Annotated[str | None, Query(description="next_cursor прошлой страницы")] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> ItemHistory:
+    return service.history(db, user, item_id, cursor, limit)
 
 
 @router.post(

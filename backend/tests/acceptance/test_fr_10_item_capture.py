@@ -78,7 +78,7 @@ def test_parsed_fields_are_filled_after_creation(authed: TestClient, world: Worl
     ctx = make_ctx(world)
     item_id = post_item(authed, world.meeting.id).json()["id"]
     card = authed.get(f"{API}/items/{item_id}").json()
-    assert card["assignee"]["id"] == str(ctx.ivan.id)
+    assert card["assignee"]["person_id"] == str(ctx.ivan.id)
     assert card["due_date"] == "2026-10-16"
 
 

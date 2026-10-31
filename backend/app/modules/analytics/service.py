@@ -36,7 +36,6 @@ EVENT_NAMES = frozenset(
         "reminder_sent",
         "item_done",
         "item_overdue",
-        "item_edited",
     }
 )
 _TOKEN = re.compile(r"[A-Za-z0-9_.:+-]{1,40}")
@@ -100,6 +99,10 @@ def track(
 
 def was_tracked_since(db: Session, name: str, item_id: uuid.UUID, since: datetime) -> bool:
     return repository.exists_since(db, name, item_id, since)
+
+
+def review_skipped(db: Session, meeting_id: uuid.UUID) -> bool:
+    return repository.exists_for_meeting(db, "review_skipped", meeting_id)
 
 
 def export_events_csv(db: Session, query: EventsExportQuery) -> Iterator[str]:

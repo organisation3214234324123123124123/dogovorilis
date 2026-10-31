@@ -210,7 +210,7 @@ def api_case(authed: TestClient, world: World):
 
 def test_api_ivan_friday(api_case) -> None:
     card, _, ctx = api_case("Иван разберётся с выгрузкой к пятнице")
-    assert card["assignee"]["id"] == str(ctx.ivan.id)
+    assert card["assignee"]["person_id"] == str(ctx.ivan.id)
     assert (card["due_date"], card["due_text"]) == ("2026-10-16", "к пятнице")
 
 
