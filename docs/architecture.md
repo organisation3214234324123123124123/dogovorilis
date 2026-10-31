@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-  B[Клиент: сайт, Swagger] -->|/api, /ws| A[backend API]
+  B[Клиент: сайт, Swagger] -->|/api, в том числе /api/v1/ws| A[backend API]
   A --> P[(PostgreSQL)]
   A -->|задачи| R[(Redis, брокер)]
   R --> W[worker]
@@ -47,6 +47,10 @@ sequenceDiagram
 ```
 Уточнение разбора через LLM (`enrich_item`) в этот путь пока не подключено. Страница исполнителя `/p/{token}` работает без входа: доступ по ссылке из письма, в базе только отпечаток токена.
 
+Повторной рассылки нет: «Разослать» у встречи в `sent` возвращает прежний результат, а пункт, добавленный после рассылки, уходит сразу (`items.service.send_item`: статус pending, ссылка, CONFIRM_REQUEST, DUE_TOMORROW). Отправщик сливает письма одного типа одному получателю в пределах серии; лимит 3 в неделю считает слитые письма.
+
+Пункт во всех ответах и кадрах WebSocket собирает `items.service.to_reads`: `assignee` = `{person_id, full_name, is_external}`, `load_warning` по BR-9, у пробела всегда заполнен `question`. Карточка добавляет `allowed_actions` (таблица переходов) и `last_response`.
+
 ## Модель данных
 17 таблиц SRS v3, 3 служебные (`login_attempts`, `password_reset_tokens`, `access_link_tokens`) и журнал событий живой панели `meeting_events` (FR-14). Модели лежат в `app/modules/<модуль>/models.py`, реестр для Alembic — `app/models.py`.
 
@@ -72,6 +76,7 @@ erDiagram
   persons ||--o{ access_links : ""
   meetings ||--o{ access_links : ""
   access_links ||--o{ access_link_tokens : "токен каждого письма"
+  users ||--o{ password_reset_tokens : "сброс пароля, FR-03"
   meetings ||--o{ notifications : ""
   items |o--o{ notifications : ""
   llm_prompts ||--o{ llm_calls : ""
