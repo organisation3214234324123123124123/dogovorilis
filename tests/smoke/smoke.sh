@@ -150,13 +150,13 @@ JAR="$TMP/exec-cookies.txt" # исполнитель - отдельный кли
 req GET "$API/p/$TOKEN" ""
 expect "страница по ссылке отдаёт пункт" 200 ".csrf_token != null and ([.items[] | select(.id == \"$ITEM_ID\")] | length) == 1"
 CSRF="$(field .csrf_token)"
-grep -q 'csrf_token' "$JAR" || fail "GET /p/{token} не поставил cookie csrf_token"
+awk -F'\t' '$6 == "csrf" { found = 1 } END { exit !found }' "$JAR" || fail "GET /p/{token} не поставил cookie csrf"
 
 req POST "$API/p/$TOKEN/items/$ITEM_ID/accept" ""
 expect "ответ без CSRF -> 403" 403 '.code == "CSRF_INVALID"'
 
 req POST "$API/p/$TOKEN/items/$ITEM_ID/accept" "" "X-CSRF-Token: $CSRF"
-expect "исполнитель принимает пункт (с CSRF)" 200 '.status == "accepted"'
+expect "исполнитель принимает пункт (с CSRF)" 200 "([.items[] | select(.id == \"$ITEM_ID\")][0].status) == \"accepted\""
 JAR="$PJAR"
 
 req GET "$API/items/$ITEM_ID" ""

@@ -2,11 +2,13 @@ import hashlib
 import hmac
 import uuid
 from datetime import UTC, date, datetime, timedelta
+from typing import get_args
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import Forbidden, Gone, NotFound
+from app.core.errors import Forbidden, Gone
 from app.modules.analytics import service as analytics_service
 from app.modules.confirm import repository
 from app.modules.confirm.models import AccessLink
@@ -50,30 +52,49 @@ def csrf_token(token: str) -> str:
 def _active_link(db: Session, token: str) -> AccessLink:
     link = repository.get_link(db, token_hash(token))
     if link is None:
-        raise NotFound("Ссылка не найдена")
+        raise Gone("Ссылка устарела")
     if link.revoked_at is not None or link.expires_at <= datetime.now(UTC):
         _, _, host, _ = repository.link_context(db, link)
         raise Gone("Ссылка устарела", host_name=host.full_name)
     return link
 
 
-def _public_item(item: Item, today: date) -> PublicItem:
+def _public_item(item: Item) -> PublicItem:
     return PublicItem(
         id=item.id,
-        what=item.what,
+        what=item.what or item.raw_text,
         due_date=item.due_date,
         done_criteria=item.done_criteria,
         status=item.status,
-        is_overdue=items_service.is_overdue(item, today),
-        actions=_ACTIONS.get(item.status, []),
+        accepted_in_meeting=item.accepted_in_meeting,
+        allowed_actions=_ACTIONS.get(item.status, []),
         max_due_date=item.due_date + RESCHEDULE_LIMIT if item.due_date else None,
     )
 
 
-def get_page(db: Session, token: str, notification_type: str | None = None) -> PublicPage:
+def _page(
+    db: Session, link: AccessLink, token: str, preselected_action: PublicAction | None
+) -> PublicPage:
+    meeting, series, host, person = repository.link_context(db, link)
+    zone = ZoneInfo(series.timezone)
+    return PublicPage(
+        host_name=host.full_name,
+        series_title=series.title,
+        meeting_date=meeting.planned_start.astimezone(zone).date(),
+        recipient_name=person.full_name,
+        preselected_action=preselected_action,
+        today=items_service.today_in(series.timezone),
+        csrf_token=csrf_token(token),
+        items=[_public_item(i) for i in repository.person_items(db, meeting.id, person.id)],
+    )
+
+
+def get_page(
+    db: Session, token: str, notification_type: str | None = None, action: str | None = None
+) -> PublicPage:
     """GET ничего не меняет в пунктах, пишется только факт открытия (BR-12, OQ-14)."""
     link = _active_link(db, token)
-    meeting, series, host, person = repository.link_context(db, link)
+    meeting, series, _, _ = repository.link_context(db, link)
     link.last_used_at = datetime.now(UTC)
     analytics_service.track(
         db,
@@ -82,17 +103,8 @@ def get_page(db: Session, token: str, notification_type: str | None = None) -> P
         meeting_id=meeting.id,
         notification_type=notification_type or "SUMMARY",
     )
-    today = items_service.today_in(series.timezone)
-    return PublicPage(
-        host_name=host.full_name,
-        series_title=series.title,
-        meeting_start=meeting.planned_start,
-        person_name=person.full_name,
-        timezone=series.timezone,
-        today=today,
-        csrf_token=csrf_token(token),
-        items=[_public_item(i, today) for i in repository.person_items(db, meeting.id, person.id)],
-    )
+    preselected = next((a for a in get_args(PublicAction) if a == action), None)
+    return _page(db, link, token, preselected)
 
 
 def _check_post(db: Session, token: str, item_id: uuid.UUID, csrf: str | None) -> AccessLink:
@@ -114,23 +126,23 @@ def _answer(
     *,
     due_date: date | None = None,
     comment: str | None = None,
-) -> PublicItem:
+) -> PublicPage:
     link = _check_post(db, token, item_id, csrf)
     link.last_used_at = datetime.now(UTC)
-    meeting, series, _, person = repository.link_context(db, link)
-    item = items_service.answer_by_link(
+    meeting, _, _, person = repository.link_context(db, link)
+    items_service.answer_by_link(
         db, person, meeting.id, item_id, action, due_date=due_date, comment=comment
     )
-    return _public_item(item, items_service.today_in(series.timezone))
+    return _page(db, link, token, None)
 
 
-def accept(db: Session, token: str, item_id: uuid.UUID, csrf: str | None) -> PublicItem:
+def accept(db: Session, token: str, item_id: uuid.UUID, csrf: str | None) -> PublicPage:
     return _answer(db, token, item_id, csrf, "accept")
 
 
 def reschedule(
     db: Session, token: str, item_id: uuid.UUID, csrf: str | None, body: RescheduleRequest
-) -> PublicItem:
+) -> PublicPage:
     return _answer(
         db, token, item_id, csrf, "reschedule", due_date=body.due_date, comment=body.comment
     )
@@ -138,11 +150,11 @@ def reschedule(
 
 def decline(
     db: Session, token: str, item_id: uuid.UUID, csrf: str | None, body: DeclineRequest
-) -> PublicItem:
+) -> PublicPage:
     return _answer(db, token, item_id, csrf, "decline", comment=body.comment)
 
 
-def done(db: Session, token: str, item_id: uuid.UUID, csrf: str | None) -> PublicItem:
+def done(db: Session, token: str, item_id: uuid.UUID, csrf: str | None) -> PublicPage:
     return _answer(db, token, item_id, csrf, "done")
 
 

@@ -160,8 +160,8 @@ def test_reassigned_item_is_hidden_behind_every_old_token(
         assert str(sc.pending.id) not in host.get(f"/api/v1/p/{token}").text
 
 
-def test_unknown_token_is_404_like_before(host, sc: Scenario) -> None:
-    assert page(host, base64.urlsafe_b64encode(bytes(32)).rstrip(b"=").decode()) == 404
+def test_unknown_token_is_410_link_expired(host, sc: Scenario) -> None:
+    assert page(host, base64.urlsafe_b64encode(bytes(32)).rstrip(b"=").decode()) == 410
 
 
 def test_no_token_reaches_logs(host, sc: Scenario, mailbox: Mailbox, caplog) -> None:

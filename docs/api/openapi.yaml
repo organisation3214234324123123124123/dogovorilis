@@ -1612,7 +1612,11 @@ components:
     PublicItem:
       description: 'Пункт на странице исполнителя: без истории и чужих данных.'
       properties:
-        actions:
+        accepted_in_meeting:
+          description: Исполнитель согласился на встрече
+          title: Accepted In Meeting
+          type: boolean
+        allowed_actions:
           description: 'Кнопки по статусу: pending - accept, reschedule, decline;
             accepted - done, reschedule, decline; остальные - нет'
           examples:
@@ -1626,7 +1630,7 @@ components:
             - decline
             - done
             type: string
-          title: Actions
+          title: Allowed Actions
           type: array
         done_criteria:
           anyOf:
@@ -1647,9 +1651,6 @@ components:
           format: uuid
           title: Id
           type: string
-        is_overdue:
-          title: Is Overdue
-          type: boolean
         max_due_date:
           anyOf:
           - format: date
@@ -1661,17 +1662,17 @@ components:
           $ref: '#/components/schemas/ItemStatus'
           description: cancelled показывается как «снят» без кнопок
         what:
-          anyOf:
-          - type: string
-          - type: 'null'
+          description: Формулировка; если не заполнена - исходный текст пункта
           examples:
           - Выгрузить отчёт по оттоку за квартал
           title: What
+          type: string
       required:
       - id
+      - what
       - status
-      - is_overdue
-      - actions
+      - accepted_in_meeting
+      - allowed_actions
       title: PublicItem
       type: object
     PublicPage:
@@ -1691,24 +1692,32 @@ components:
             $ref: '#/components/schemas/PublicItem'
           title: Items
           type: array
-        meeting_start:
-          format: date-time
-          title: Meeting Start
+        meeting_date:
+          description: Дата встречи в поясе серии
+          format: date
+          title: Meeting Date
           type: string
-        person_name:
+        preselected_action:
+          anyOf:
+          - enum:
+            - accept
+            - reschedule
+            - decline
+            - done
+            type: string
+          - type: 'null'
+          description: Действие из кнопки письма (?action=); выполняется только после
+            подтверждения POST. В ответе на POST всегда null
+          title: Preselected Action
+        recipient_name:
           examples:
           - Иван Петров
-          title: Person Name
+          title: Recipient Name
           type: string
         series_title:
           examples:
           - Еженедельная планёрка по запуску оплаты
           title: Series Title
-          type: string
-        timezone:
-          examples:
-          - Europe/Moscow
-          title: Timezone
           type: string
         today:
           description: 'Сегодня по поясу серии: нижняя граница нового срока'
@@ -1718,9 +1727,8 @@ components:
       required:
       - host_name
       - series_title
-      - meeting_start
-      - person_name
-      - timezone
+      - meeting_date
+      - recipient_name
       - today
       - csrf_token
       - items
@@ -3720,10 +3728,21 @@ paths:
             - CONFIRM_REQUEST
             - CONFIRM_REPEAT
             - DUE_TOMORROW
+            - ITEM_CHANGED
             type: string
           - type: 'null'
           description: Тип письма, из которого открыта ссылка (для события link_opened)
           title: N
+      - description: Действие из кнопки письма; неизвестное игнорируется (BR-12)
+        in: query
+        name: action
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Действие из кнопки письма; неизвестное игнорируется (BR-12)
+          title: Action
       responses:
         '200':
           content:
@@ -3733,25 +3752,19 @@ paths:
           description: Страница и CSRF-токен; тот же токен в cookie для double submit
           headers:
             Set-Cookie:
-              description: '`csrf_token=<токен>; HttpOnly; SameSite=Strict; Path=/api/v1/p`.
-                Действия шлют этот токен ещё и в заголовке X-CSRF-Token'
+              description: '`csrf=<токен>; HttpOnly; SameSite=Strict; Secure (вне
+                DEV_MODE); Path=/api/v1/p`. Действия шлют этот токен ещё и в заголовке
+                X-CSRF-Token'
               schema:
                 type: string
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
-          description: Объекта нет или он чужой
         '410':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/LinkExpiredProblem'
             application/problem+json: {}
-          description: Ссылка истекла или отозвана (LINK_EXPIRED); в ответе только
-            имя ведущего
+          description: Ссылка неизвестна, истекла или отозвана (LINK_EXPIRED); у известной
+            ссылки в ответе только имя ведущего
         '422':
           content:
             application/problem+json:
@@ -3800,7 +3813,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PublicItem'
+                $ref: '#/components/schemas/PublicPage'
           description: Successful Response
         '403':
           content:
@@ -3809,13 +3822,6 @@ paths:
                 $ref: '#/components/schemas/Problem'
             application/problem+json: {}
           description: Чужой пункт (NOT_YOUR_ITEM) или нет CSRF-токена (CSRF_INVALID)
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
-          description: Объекта нет или он чужой
         '409':
           content:
             application/json:
@@ -3830,8 +3836,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/LinkExpiredProblem'
             application/problem+json: {}
-          description: Ссылка истекла или отозвана (LINK_EXPIRED); в ответе только
-            имя ведущего
+          description: Ссылка неизвестна, истекла или отозвана (LINK_EXPIRED); у известной
+            ссылки в ответе только имя ведущего
         '422':
           content:
             application/problem+json:
@@ -3880,14 +3886,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeclineRequest'
-        required: true
+              anyOf:
+              - $ref: '#/components/schemas/DeclineRequest'
+              - type: 'null'
+              title: Body
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PublicItem'
+                $ref: '#/components/schemas/PublicPage'
           description: Successful Response
         '403':
           content:
@@ -3896,13 +3904,6 @@ paths:
                 $ref: '#/components/schemas/Problem'
             application/problem+json: {}
           description: Чужой пункт (NOT_YOUR_ITEM) или нет CSRF-токена (CSRF_INVALID)
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
-          description: Объекта нет или он чужой
         '409':
           content:
             application/json:
@@ -3917,8 +3918,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/LinkExpiredProblem'
             application/problem+json: {}
-          description: Ссылка истекла или отозвана (LINK_EXPIRED); в ответе только
-            имя ведущего
+          description: Ссылка неизвестна, истекла или отозвана (LINK_EXPIRED); у известной
+            ссылки в ответе только имя ведущего
         '422':
           content:
             application/problem+json:
@@ -3967,7 +3968,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PublicItem'
+                $ref: '#/components/schemas/PublicPage'
           description: Successful Response
         '403':
           content:
@@ -3976,13 +3977,6 @@ paths:
                 $ref: '#/components/schemas/Problem'
             application/problem+json: {}
           description: Чужой пункт (NOT_YOUR_ITEM) или нет CSRF-токена (CSRF_INVALID)
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
-          description: Объекта нет или он чужой
         '409':
           content:
             application/json:
@@ -3997,8 +3991,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/LinkExpiredProblem'
             application/problem+json: {}
-          description: Ссылка истекла или отозвана (LINK_EXPIRED); в ответе только
-            имя ведущего
+          description: Ссылка неизвестна, истекла или отозвана (LINK_EXPIRED); у известной
+            ссылки в ответе только имя ведущего
         '422':
           content:
             application/problem+json:
@@ -4053,7 +4047,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PublicItem'
+                $ref: '#/components/schemas/PublicPage'
           description: Successful Response
         '403':
           content:
@@ -4062,13 +4056,6 @@ paths:
                 $ref: '#/components/schemas/Problem'
             application/problem+json: {}
           description: Чужой пункт (NOT_YOUR_ITEM) или нет CSRF-токена (CSRF_INVALID)
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json: {}
-          description: Объекта нет или он чужой
         '409':
           content:
             application/json:
@@ -4083,8 +4070,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/LinkExpiredProblem'
             application/problem+json: {}
-          description: Ссылка истекла или отозвана (LINK_EXPIRED); в ответе только
-            имя ведущего
+          description: Ссылка неизвестна, истекла или отозвана (LINK_EXPIRED); у известной
+            ссылки в ответе только имя ведущего
         '422':
           content:
             application/problem+json:

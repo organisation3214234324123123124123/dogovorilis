@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -14,12 +14,15 @@ class PublicItem(BaseModel):
     """Пункт на странице исполнителя: без истории и чужих данных."""
 
     id: uuid.UUID
-    what: str | None = Field(None, examples=["Выгрузить отчёт по оттоку за квартал"])
+    what: str = Field(
+        description="Формулировка; если не заполнена - исходный текст пункта",
+        examples=["Выгрузить отчёт по оттоку за квартал"],
+    )
     due_date: date | None = Field(None, examples=["2026-10-30"])
     done_criteria: str | None = Field(None, examples=["Таблица в общей папке"])
     status: ItemStatus = Field(description="cancelled показывается как «снят» без кнопок")
-    is_overdue: bool
-    actions: list[PublicAction] = Field(
+    accepted_in_meeting: bool = Field(description="Исполнитель согласился на встрече")
+    allowed_actions: list[PublicAction] = Field(
         description="Кнопки по статусу: pending - accept, reschedule, decline; "
         "accepted - done, reschedule, decline; остальные - нет",
         examples=[["accept", "reschedule", "decline"]],
@@ -34,9 +37,13 @@ class PublicPage(BaseModel):
 
     host_name: str = Field(examples=["Мария Соколова"])
     series_title: str = Field(examples=["Еженедельная планёрка по запуску оплаты"])
-    meeting_start: datetime
-    person_name: str = Field(examples=["Иван Петров"])
-    timezone: str = Field(examples=["Europe/Moscow"])
+    meeting_date: date = Field(description="Дата встречи в поясе серии")
+    recipient_name: str = Field(examples=["Иван Петров"])
+    preselected_action: PublicAction | None = Field(
+        None,
+        description="Действие из кнопки письма (?action=); выполняется только после "
+        "подтверждения POST. В ответе на POST всегда null",
+    )
     today: date = Field(description="Сегодня по поясу серии: нижняя граница нового срока")
     csrf_token: str = Field(description="Передать в X-CSRF-Token при любом POST")
     items: list[PublicItem]
