@@ -43,7 +43,7 @@ def test_page_returns_own_items_only(client: TestClient, world: World, own_item)
     assert resp.status_code == 200
     body = resp.json()
     assert [i["id"] for i in body["items"]] == [str(own_item.id)]
-    assert body["person_name"] == world.person.full_name
+    assert body["recipient_name"] == world.person.full_name
     assert body["series_title"] == world.series.title
     assert body["host_name"] == world.user.full_name
 
@@ -52,7 +52,7 @@ def test_page_returns_own_items_only(client: TestClient, world: World, own_item)
 def test_page_sets_strict_csrf_cookie(client: TestClient, own_item) -> None:
     resp = client.get(f"/api/v1/p/{TOKEN}")
     cookie = resp.headers["set-cookie"].lower()
-    assert "csrf_token=" in cookie
+    assert "csrf=" in cookie
     assert "samesite=strict" in cookie
     assert "httponly" in cookie
     assert "path=/api/v1/p" in cookie
@@ -72,10 +72,10 @@ def test_page_get_does_not_change_items(client: TestClient, world: World, own_it
     assert own_item.version == 1
 
 
-def test_unknown_token_is_404(client: TestClient, link) -> None:
+def test_unknown_token_is_410_link_expired(client: TestClient, link) -> None:
     resp = client.get("/api/v1/p/unknown-token")
-    assert resp.status_code == 404
-    assert resp.json()["code"] == "NOT_FOUND"
+    assert resp.status_code == 410
+    assert resp.json()["code"] == "LINK_EXPIRED"
 
 
 def test_revoked_link_is_410_without_item_data(client: TestClient, world: World, own_item, link):

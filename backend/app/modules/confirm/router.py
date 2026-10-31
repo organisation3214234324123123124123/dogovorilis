@@ -3,19 +3,21 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Cookie, Depends, Header, Query, Response
 
+from app.core.config import get_settings
 from app.core.db import SessionDep
 from app.core.errors import PROBLEM_JSON, errors
 from app.modules.confirm import service
 from app.modules.confirm.schemas import (
     DeclineRequest,
     LinkExpiredProblem,
-    PublicItem,
     PublicPage,
     RescheduleRequest,
 )
 
-CSRF_COOKIE = "csrf_token"
-NotificationKind = Literal["SUMMARY", "CONFIRM_REQUEST", "CONFIRM_REPEAT", "DUE_TOMORROW"]
+CSRF_COOKIE = "csrf"
+NotificationKind = Literal[
+    "SUMMARY", "CONFIRM_REQUEST", "CONFIRM_REPEAT", "DUE_TOMORROW", "ITEM_CHANGED"
+]
 
 
 def _private_page_headers(response: Response) -> None:
@@ -30,14 +32,14 @@ router = APIRouter(
 _GONE = {
     410: {
         "model": LinkExpiredProblem,
-        "description": "Ссылка истекла или отозвана (LINK_EXPIRED); в ответе только имя ведущего",
+        "description": "Ссылка неизвестна, истекла или отозвана (LINK_EXPIRED); "
+        "у известной ссылки в ответе только имя ведущего",
         "content": {PROBLEM_JSON: {}},
     }
 }
 _POST_ERRORS = {
     **errors(
         403,
-        404,
         409,
         422,
         429,
@@ -75,13 +77,14 @@ CsrfHeader = Annotated[str | None, Depends(read_csrf)]
             "description": "Страница и CSRF-токен; тот же токен в cookie для double submit",
             "headers": {
                 "Set-Cookie": {
-                    "description": "`csrf_token=<токен>; HttpOnly; SameSite=Strict; "
-                    "Path=/api/v1/p`. Действия шлют этот токен ещё и в заголовке X-CSRF-Token",
+                    "description": "`csrf=<токен>; HttpOnly; SameSite=Strict; "
+                    "Secure (вне DEV_MODE); Path=/api/v1/p`. Действия шлют этот токен ещё и в "
+                    "заголовке X-CSRF-Token",
                     "schema": {"type": "string"},
                 }
             },
         },
-        **errors(404, 429),
+        **errors(429),
         **_GONE,
     },
 )
@@ -93,10 +96,19 @@ def get_page(
         NotificationKind | None,
         Query(description="Тип письма, из которого открыта ссылка (для события link_opened)"),
     ] = None,
+    action: Annotated[
+        str | None,
+        Query(description="Действие из кнопки письма; неизвестное игнорируется (BR-12)"),
+    ] = None,
 ) -> PublicPage:
-    page = service.get_page(db, token, n)
+    page = service.get_page(db, token, n, action)
     response.set_cookie(
-        CSRF_COOKIE, page.csrf_token, httponly=True, samesite="strict", path="/api/v1/p"
+        CSRF_COOKIE,
+        page.csrf_token,
+        httponly=True,
+        secure=not get_settings().is_dev,
+        samesite="strict",
+        path="/api/v1/p",
     )
     return page
 
@@ -105,7 +117,7 @@ def get_page(
     "/items/{item_id}/accept",
     summary="«Принимаю»",
     description="pending -> accepted; повтор CONFIRM_REPEAT отменяется.",
-    response_model=PublicItem,
+    response_model=PublicPage,
     responses=_POST_ERRORS,
 )
 def accept(
@@ -113,7 +125,7 @@ def accept(
     item_id: uuid.UUID,
     db: SessionDep,
     csrf: CsrfHeader,
-) -> PublicItem:
+) -> PublicPage:
     return service.accept(db, token, item_id, csrf)
 
 
@@ -121,12 +133,12 @@ def accept(
     "/items/{item_id}/reschedule",
     summary="«Нужен другой срок»",
     description="pending/accepted -> accepted с новым сроком (BR-6); ведущему HOST_RESPONSE.",
-    response_model=PublicItem,
+    response_model=PublicPage,
     responses=_POST_ERRORS,
 )
 def reschedule(
     token: str, item_id: uuid.UUID, body: RescheduleRequest, db: SessionDep, csrf: CsrfHeader
-) -> PublicItem:
+) -> PublicPage:
     return service.reschedule(db, token, item_id, csrf, body)
 
 
@@ -135,21 +147,25 @@ def reschedule(
     summary="«Это не моё»",
     description="pending/accepted -> disputed; комментарий до 500 символов; ведущему "
     "HOST_RESPONSE.",
-    response_model=PublicItem,
+    response_model=PublicPage,
     responses=_POST_ERRORS,
 )
 def decline(
-    token: str, item_id: uuid.UUID, body: DeclineRequest, db: SessionDep, csrf: CsrfHeader
-) -> PublicItem:
-    return service.decline(db, token, item_id, csrf, body)
+    token: str,
+    item_id: uuid.UUID,
+    db: SessionDep,
+    csrf: CsrfHeader,
+    body: DeclineRequest | None = None,
+) -> PublicPage:
+    return service.decline(db, token, item_id, csrf, body or DeclineRequest())
 
 
 @router.post(
     "/items/{item_id}/done",
     summary="«Сделано»",
     description="Только из accepted -> done; ведущий не подтверждает.",
-    response_model=PublicItem,
+    response_model=PublicPage,
     responses=_POST_ERRORS,
 )
-def done(token: str, item_id: uuid.UUID, db: SessionDep, csrf: CsrfHeader) -> PublicItem:
+def done(token: str, item_id: uuid.UUID, db: SessionDep, csrf: CsrfHeader) -> PublicPage:
     return service.done(db, token, item_id, csrf)
