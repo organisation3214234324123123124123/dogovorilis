@@ -19,6 +19,7 @@ from app.modules.auth.models import User
 from app.modules.confirm import service as confirm_service
 from app.modules.gaps import service as gaps_service
 from app.modules.gaps.models import BLOCKING_GAPS, Gap
+from app.modules.gaps.rules import question_for
 from app.modules.items import repository
 from app.modules.items.models import (
     OPEN_STATUSES,
@@ -36,15 +37,17 @@ from app.modules.items.schemas import (
     AcceptInMeetingRequest,
     AssigneeResponse,
     GapRead,
+    HostAction,
     ItemActionRequest,
     ItemCard,
     ItemCreate,
     ItemEventRead,
+    ItemHistory,
     ItemPage,
     ItemRead,
     ItemUpdate,
-    OverloadWarning,
-    PersonBrief,
+    LoadWarning,
+    PersonRef,
     ReassignAction,
     RescheduleAction,
 )
@@ -60,6 +63,7 @@ from app.modules.series.models import (
     MeetingStatus,
     Person,
     Series,
+    SeriesStatus,
 )
 
 ON_TIME_WINDOW_DAYS = 30
@@ -85,8 +89,33 @@ def is_overdue(item: Item, today: date) -> bool:
     return item.status in OPEN_STATUSES and item.due_date is not None and item.due_date < today
 
 
-def _gap_read(gap: Gap) -> GapRead:
-    return GapRead.model_validate(gap).model_copy(update={"blocking": gap.type in BLOCKING_GAPS})
+ALLOWED_ACTIONS: dict[ItemStatus, tuple[HostAction, ...]] = {
+    ItemStatus.DRAFT: ("edit",),
+    ItemStatus.PENDING: ("edit", "done", "reschedule", "cancel", "reassign"),
+    ItemStatus.ACCEPTED: ("edit", "done", "reschedule", "cancel", "reassign"),
+    ItemStatus.DISPUTED: ("edit", "cancel", "reassign"),
+    ItemStatus.DONE: ("reopen",),
+    ItemStatus.CANCELLED: (),
+}
+
+
+def allowed_actions(item: Item, series: Series) -> list[HostAction]:
+    """Что ведущий может сделать с пунктом; в архивной серии ничего (FR-09, FR-43)."""
+    if series.status == SeriesStatus.ARCHIVED:
+        return []
+    return list(ALLOWED_ACTIONS[item.status])
+
+
+def _gap_read(gap: Gap, item: Item, name: str | None) -> GapRead:
+    question = question_for(gap.question, gap.type, name=name, due_text=item.due_text)
+    return GapRead(
+        id=gap.id,
+        type=gap.type,
+        source=gap.source,
+        question=question,
+        detected_at=gap.detected_at,
+        blocking=gap.type in BLOCKING_GAPS,
+    )
 
 
 def accept_blocker(item: Item, gaps: list[Gap], present: bool) -> str | None:
@@ -110,20 +139,28 @@ def _read(
     persons: dict[uuid.UUID, Person],
     gaps: list[Gap],
     loads: dict[uuid.UUID, int],
+    externals: set[uuid.UUID],
+    thresholds: dict[uuid.UUID, int | None],
     present: bool,
 ) -> dict:
     person = persons.get(item.assignee_person_id) if item.assignee_person_id else None
     data = {c: getattr(item, c) for c in ItemRead.model_fields if hasattr(item, c)}
+    name = person.full_name.split()[0] if person and person.full_name.strip() else None
+    threshold = thresholds.get(item.series_id) or LOAD_WARNING_THRESHOLD_DEFAULT
+    open_items = loads.get(person.id, 0) if person else 0
     data.update(
         assignee=(
-            PersonBrief(
-                id=person.id, full_name=person.full_name, open_items=loads.get(person.id, 0)
+            PersonRef(
+                person_id=person.id, full_name=person.full_name, is_external=person.id in externals
             )
             if person
             else None
         ),
+        load_warning=LoadWarning(open_items=open_items)
+        if person and open_items >= threshold
+        else None,
         is_overdue=is_overdue(item, today),
-        gaps=[_gap_read(g) for g in gaps],
+        gaps=[_gap_read(g, item, name) for g in gaps],
         accept_blocked_reason=(reason := accept_blocker(item, gaps, present)),
         can_accept_in_meeting=reason is None,
     )
@@ -135,6 +172,8 @@ def to_reads(db: Session, items: list[Item], tz: str) -> list[ItemRead]:
     persons = repository.persons(db, (i.assignee_person_id for i in items))
     gaps = repository.open_gaps(db, (i.id for i in items))
     loads = open_counts(db, persons, today)
+    externals = repository.external_person_ids(db, persons)
+    thresholds = repository.load_thresholds(db, {i.series_id for i in items})
     here = repository.present_pairs(db, items)
     return [
         ItemRead(
@@ -144,6 +183,8 @@ def to_reads(db: Session, items: list[Item], tz: str) -> list[ItemRead]:
                 persons,
                 gaps.get(i.id, []),
                 loads,
+                externals,
+                thresholds,
                 (i.meeting_id, i.assignee_person_id) in here,
             )
         )
@@ -179,28 +220,28 @@ def _owned(
     return found
 
 
+ANSWER_KINDS = {
+    ItemAction.ACCEPTED: "accept",
+    ItemAction.RESCHEDULED: "reschedule",
+    ItemAction.DISPUTED: "not_mine",
+    ItemAction.DONE: "done",
+}
+
+
 def _last_response(db: Session, item: Item, events: list) -> AssigneeResponse | None:
-    answers = [
-        e
-        for e in events
-        if e.actor_type == ActorType.ASSIGNEE
-        and e.action in (ItemAction.RESCHEDULED, ItemAction.DISPUTED)
-    ]
+    answers = [e for e in events if e.actor_type == ActorType.ASSIGNEE and e.action in ANSWER_KINDS]
     comment = repository.last_comment(db, item.id)
     if not answers and comment is None:
         return None
     if answers:
         event = answers[-1]
-        kind = (
-            CommentKind.RESCHEDULE
-            if event.action == ItemAction.RESCHEDULED
-            else CommentKind.NOT_MINE
+        kind = ANSWER_KINDS[event.action]
+        text = comment.text if comment and comment.kind.value == kind else None
+        return AssigneeResponse(
+            kind=kind, comment=text, due_date=event.data.get("due_date"), at=event.created_at
         )
-        text = comment.text if comment and comment.kind == kind else None
-        due = event.data.get("due_date")
-        return AssigneeResponse(kind=kind, text=text, due_date=due, at=event.created_at)
     assert comment is not None
-    return AssigneeResponse(kind=comment.kind, text=comment.text, at=comment.created_at)
+    return AssigneeResponse(kind=comment.kind.value, comment=comment.text, at=comment.created_at)
 
 
 def get_card(db: Session, user: User, item_id: uuid.UUID) -> ItemCard:
@@ -211,12 +252,25 @@ def get_card(db: Session, user: User, item_id: uuid.UUID) -> ItemCard:
         series_title=series.title,
         meeting_planned_start=meeting.planned_start,
         last_response=_last_response(db, item, repository.events(db, item.id)),
+        allowed_actions=allowed_actions(item, series),
     )
 
 
-def history(db: Session, user: User, item_id: uuid.UUID) -> list[ItemEventRead]:
+def _cursor(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValidationFailed("cursor должен быть id события", field="cursor") from exc
+
+
+def history(
+    db: Session, user: User, item_id: uuid.UUID, cursor: str | None, limit: int
+) -> ItemHistory:
     _owned(db, user, item_id)
-    events = repository.events(db, item_id)
+    rows = repository.events_page(db, item_id, before_id=_cursor(cursor), limit=limit + 1)
+    events, more = rows[:limit], len(rows) > limit
     users = repository.users(db, (e.actor_user_id for e in events))
     persons = repository.persons(db, (e.actor_person_id for e in events))
 
@@ -227,9 +281,13 @@ def history(db: Session, user: User, item_id: uuid.UUID) -> list[ItemEventRead]:
             return persons[e.actor_person_id].full_name
         return user.full_name if e.actor_type == ActorType.HOST else None
 
-    return [
-        ItemEventRead.model_validate(e).model_copy(update={"actor_name": actor(e)}) for e in events
-    ]
+    return ItemHistory(
+        events=[
+            ItemEventRead.model_validate(e).model_copy(update={"actor_name": actor(e)})
+            for e in events
+        ],
+        next_cursor=str(events[-1].id) if more else None,
+    )
 
 
 def list_meeting_items(db: Session, meeting_id: uuid.UUID, tz: str) -> list[ItemRead]:
@@ -349,25 +407,15 @@ def _check_rate(db: Session, meeting_id: uuid.UUID) -> None:
         raise RateLimited("Слишком много решений за минуту", retry_after=math.ceil(wait))
 
 
-def _warn_overload(
-    db: Session, user: User, series: Series, item: Item, today: date
-) -> OverloadWarning | None:
-    """Только предупреждение, назначение не блокируем (BR-9)."""
-    if item.assignee_person_id is None:
-        return None
-    load = repository.open_load(
-        db,
-        user.id,
-        item.assignee_person_id,
-        due_from=today,
-        due_to=today + timedelta(days=OVERLOAD_WINDOW_DAYS),
-        exclude_item_id=item.id,
-    )
-    threshold = series.load_warning_threshold or LOAD_WARNING_THRESHOLD_DEFAULT
-    if load < threshold:
-        return None
-    analytics_service.track(db, "overload_warning_shown", open_items=load, **_ids(user, item))
-    return OverloadWarning(open_items=load, threshold=threshold)
+def _track_overload(db: Session, user: User, item: Item, read: ItemRead) -> None:
+    """Предупреждение о нагрузке (BR-9); в аналитику уходит число открытых пунктов."""
+    if read.load_warning is not None:
+        analytics_service.track(
+            db,
+            "overload_warning_shown",
+            open_items=read.load_warning.open_items,
+            **_ids(user, item),
+        )
 
 
 def _accept_allowed(db: Session, item: Item) -> bool:
@@ -428,14 +476,13 @@ def create_item(db: Session, user: User, meeting_id: uuid.UUID, body: ItemCreate
     analytics_service.track(
         db, "decision_captured", source="manual", fields_filled=filled, **_ids(user, item)
     )
-    warning = _warn_overload(db, user, series, item, today)
     if meeting.status == MeetingStatus.SENT:
         send_item(db, user, item, series, datetime.now(UTC))
 
     read = _one(db, item, series.timezone)
+    _track_overload(db, user, item, read)
     _emit(db, meeting.id, "item.updated", item, read.model_dump(mode="json"))
     _emit(db, meeting.id, "gaps.updated", item, _gaps_data(item, read))
-    read.overload_warning = warning
     return read
 
 
@@ -496,7 +543,6 @@ def update_item(
     if item.accepted_in_meeting and not _accept_allowed(db, item):
         item.accepted_in_meeting = False
     _journal(db, user, item, ItemAction.UPDATED, fields=changed)
-    analytics_service.track(db, "item_edited", fields=changed, after_send=sent, **_ids(user, item))
     if sent:
         notifications_service.queue_item_changed(
             db, item, {f: old[f] for f in changed if f in CHANGED_FIELDS}
@@ -504,12 +550,12 @@ def update_item(
         if due_changed:
             notifications_service.replan_due_tomorrow(db, item, series.timezone)
             _recalc_link(db, item)
-    warning = _warn_overload(db, user, series, item, today) if assignee_changes else None
 
     read = _one(db, item, series.timezone)
+    if assignee_changes:
+        _track_overload(db, user, item, read)
     _emit(db, meeting.id, "item.updated", item, read.model_dump(mode="json"))
     _emit(db, meeting.id, "gaps.updated", item, _gaps_data(item, read))
-    read.overload_warning = warning
     return read
 
 
@@ -579,7 +625,7 @@ def _review_group(item: Item, today: date, tz: str) -> str | None:
         return "disputed"
     if item.status == ItemStatus.PENDING and item.sent_at is not None:
         sent_on = item.sent_at.astimezone(ZoneInfo(tz)).date()
-        if add_business_days(sent_on, STALE_PENDING_BUSINESS_DAYS) <= today:
+        if add_business_days(sent_on, STALE_PENDING_BUSINESS_DAYS) < today:
             return "stale_pending"
     return None
 
@@ -756,6 +802,7 @@ def apply_action(
         raise Conflict("Пункт уже изменён, обновите страницу", code="VERSION_CONFLICT")
     now = datetime.now(UTC)
     status_from, assignee_from, due_from = item.status, item.assignee_person_id, item.due_date
+    from_review = body.action != "reopen" and _in_live_review(db, item, series)
     if body.action == "done":
         action = _do_done(db, user, item, series, now)
     elif body.action == "reschedule":
@@ -782,7 +829,7 @@ def apply_action(
         _hand_over(db, item, series, assignee_from, now)
         extra = {"assignee_from": assignee_from, "assignee_to": item.assignee_person_id}
     _journal_review(db, user, item, action, status_from, **extra)
-    if action != ItemAction.REOPENED:
+    if from_review:
         analytics_service.track(
             db,
             "review_action",
@@ -793,6 +840,14 @@ def apply_action(
             action=body.action,
         )
     return to_reads(db, [item], series.timezone)[0]
+
+
+def _in_live_review(db: Session, item: Item, series: Series) -> bool:
+    """Действие сделано из сверки идущей встречи серии, пока её не пропустили (FR-50)."""
+    live = series_service.live_meeting_id(db, series.id)
+    if live is None or analytics_service.review_skipped(db, live):
+        return False
+    return _review_group(item, today_in(series.timezone), series.timezone) is not None
 
 
 def _hand_over(

@@ -5,9 +5,9 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.modules.gaps.models import GapSource, GapType
+from app.modules.gaps.rules import QUESTION_LIMIT
 from app.modules.items.models import (
     ActorType,
-    CommentKind,
     DoneBy,
     ItemAction,
     ItemSource,
@@ -23,33 +23,27 @@ class GapRead(BaseModel):
     id: uuid.UUID
     type: GapType = Field(examples=["no_due"])
     source: GapSource = Field(description="rule - правило, llm - нейросеть")
-    question: str | None = Field(
-        None,
-        description="Готовый вопрос ведущему, до 120 символов",
-        examples=["Иван, к какому сроку?"],
+    question: str = Field(
+        max_length=QUESTION_LIMIT,
+        description="Готовый вопрос ведущему; если своего нет, подставляется шаблон",
+        examples=["Иван, к какому числу?"],
     )
     detected_at: datetime
     blocking: bool = Field(False, description="Блокирует «Согласовано на встрече» (BR-3)")
 
 
-class PersonBrief(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
+class PersonRef(BaseModel):
+    person_id: uuid.UUID
     full_name: str = Field(examples=["Иван Петров"])
-    open_items: int | None = Field(
-        None,
-        description="Пункты в pending/accepted со сроком в ближайшие 7 дней, "
-        "по всем сериям ведущего",
-        examples=[3],
+    is_external: bool = Field(description="Из чужой организации, не своя сторона ведущего")
+
+
+class LoadWarning(BaseModel):
+    """У исполнителя набралось открытых пунктов не меньше порога серии (BR-9). Не запрет."""
+
+    open_items: int = Field(
+        description="Пункты в pending и accepted со сроком в ближайшие 7 дней", examples=[5]
     )
-
-
-class OverloadWarning(BaseModel):
-    """У исполнителя уже слишком много открытых пунктов (BR-9). Назначение не блокируется."""
-
-    open_items: int = Field(examples=[5])
-    threshold: int = Field(examples=[5])
 
 
 class ItemRead(BaseModel):
@@ -65,7 +59,7 @@ class ItemRead(BaseModel):
         description="Исходная строка ведущего", examples=["Иван разберётся с выгрузкой к пятнице"]
     )
     what: str | None = Field(None, description="Что сделать", examples=["Разобраться с выгрузкой"])
-    assignee: PersonBrief | None = Field(None, description="Исполнитель; null - не назначен")
+    assignee: PersonRef | None = Field(None, description="Исполнитель; null - не назначен")
     due_date: date | None = Field(None, description="Срок в поясе серии", examples=["2026-10-16"])
     due_text: str | None = Field(None, description="Срок словами из строки", examples=["к пятнице"])
     done_criteria: str | None = Field(
@@ -90,20 +84,23 @@ class ItemRead(BaseModel):
     reschedule_count: int = Field(description="Сколько раз меняли срок после рассылки")
     version: int = Field(description="Версия для If-Match", examples=[1])
     gaps: list[GapRead] = Field(description="Открытые пробелы")
-    overload_warning: OverloadWarning | None = Field(
-        None, description="Только в ответе на создание и правку пункта"
+    load_warning: LoadWarning | None = Field(
+        None, description="null - нет исполнителя или нагрузка ниже порога серии"
     )
     created_at: datetime
     updated_at: datetime
 
 
 class AssigneeResponse(BaseModel):
-    kind: CommentKind = Field(description="reschedule - новый срок, not_mine - «Это не моё»")
-    text: str | None = Field(
+    kind: Literal["accept", "reschedule", "not_mine", "done"]
+    due_date: date | None = Field(None, description="Новый срок для reschedule")
+    comment: str | None = Field(
         None, description="Комментарий исполнителя", examples=["Демо проводит Анна"]
     )
-    due_date: date | None = Field(None, description="Новый срок для reschedule")
     at: datetime
+
+
+HostAction = Literal["edit", "done", "reschedule", "cancel", "reassign", "reopen"]
 
 
 class ItemCard(ItemRead):
@@ -112,7 +109,10 @@ class ItemCard(ItemRead):
     series_title: str = Field(examples=["Еженедельная планёрка по запуску оплаты"])
     meeting_planned_start: datetime
     last_response: AssigneeResponse | None = Field(
-        None, description="Последний ответ исполнителя: новый срок или «не моё» с комментарием"
+        None, description="Последний ответ исполнителя по ссылке"
+    )
+    allowed_actions: list[HostAction] = Field(
+        description="Что ведущий может сделать с пунктом в текущем статусе"
     )
 
 
@@ -146,6 +146,13 @@ class ItemEventRead(BaseModel):
         examples=[{"status_from": "draft", "status_to": "pending"}],
     )
     created_at: datetime
+
+
+class ItemHistory(BaseModel):
+    events: list[ItemEventRead]
+    next_cursor: str | None = Field(
+        None, description="Передать в cursor за следующей страницей; null - это конец"
+    )
 
 
 class ItemCreate(BaseModel):

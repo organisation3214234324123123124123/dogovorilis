@@ -46,6 +46,13 @@ def active_meetings(db: Session, series_ids: list[uuid.UUID]) -> dict[uuid.UUID,
     return {sid: mid for sid, mid in db.execute(stmt)}
 
 
+def live_meeting_id(db: Session, series_id: uuid.UUID) -> uuid.UUID | None:
+    stmt = select(Meeting.id).where(
+        Meeting.series_id == series_id, Meeting.status == MeetingStatus.LIVE
+    )
+    return db.scalar(stmt.limit(1))
+
+
 def last_meeting_starts(db: Session, series_ids: list[uuid.UUID]) -> dict:
     stmt = (
         select(Meeting.series_id, func.max(Meeting.planned_start))

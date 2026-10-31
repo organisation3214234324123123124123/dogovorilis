@@ -85,28 +85,28 @@ def test_members_list_returns_open_items_per_person(authed: TestClient, world: W
 
 
 @pytest.mark.fr("FR-26")
-def test_assignee_in_item_response_carries_open_items(authed: TestClient, world: World) -> None:
+def test_assignee_in_item_response_has_no_open_items(authed: TestClient, world: World) -> None:
     ctx = make_ctx(world)
     load(world, ctx.ivan, 2)
     resp = assign(authed, world, ctx.ivan)
     assert resp.status_code == 200
-    assert resp.json()["assignee"]["open_items"] == 2
+    assert set(resp.json()["assignee"]) == {"person_id", "full_name", "is_external"}
 
 
 @pytest.mark.fr("FR-26")
-def test_patch_response_has_overload_warning_at_threshold(authed: TestClient, world: World) -> None:
+def test_patch_response_has_load_warning_at_threshold(authed: TestClient, world: World) -> None:
     ctx = make_ctx(world)
     load(world, ctx.ivan, 5)
     resp = assign(authed, world, ctx.ivan)
     assert resp.status_code == 200
-    assert resp.json()["overload_warning"] == {"open_items": 5, "threshold": 5}
+    assert resp.json()["load_warning"] == {"open_items": 5}
 
 
 @pytest.mark.fr("FR-26")
 def test_patch_response_has_no_warning_below_threshold(authed: TestClient, world: World) -> None:
     ctx = make_ctx(world)
     load(world, ctx.ivan, 4)
-    assert assign(authed, world, ctx.ivan).json()["overload_warning"] is None
+    assert assign(authed, world, ctx.ivan).json()["load_warning"] is None
 
 
 @pytest.mark.fr("FR-26")
@@ -115,19 +115,16 @@ def test_warning_uses_series_threshold(authed: TestClient, world: World) -> None
     world.series.load_warning_threshold = 3
     world.db.flush()
     load(world, ctx.ivan, 3)
-    assert assign(authed, world, ctx.ivan).json()["overload_warning"] == {
-        "open_items": 3,
-        "threshold": 3,
-    }
+    assert assign(authed, world, ctx.ivan).json()["load_warning"] == {"open_items": 3}
 
 
 @pytest.mark.fr("FR-26")
-def test_create_response_has_overload_warning(authed: TestClient, world: World) -> None:
+def test_create_response_has_load_warning(authed: TestClient, world: World) -> None:
     ctx = make_ctx(world)
     load(world, ctx.ivan, 5)
     resp = post_item(authed, world.meeting.id, "Иван разберётся с выгрузкой к пятнице")
     assert resp.status_code == 201
-    assert resp.json()["overload_warning"] == {"open_items": 5, "threshold": 5}
+    assert resp.json()["load_warning"] == {"open_items": 5}
 
 
 @pytest.mark.fr("FR-26")
@@ -138,8 +135,8 @@ def test_event_is_written_exactly_when_response_has_warning(
     load(world, ctx.ivan, 5)
     shown = assign(authed, world, ctx.ivan).json()
     quiet = assign(authed, world, ctx.anna).json()
-    assert shown["overload_warning"] is not None
-    assert quiet["overload_warning"] is None
+    assert shown["load_warning"] is not None
+    assert quiet["load_warning"] is None
     [event] = events(world.db, "overload_warning_shown")
     assert event.props["open_items"] == 5
     assert str(event.item_id) == shown["id"]

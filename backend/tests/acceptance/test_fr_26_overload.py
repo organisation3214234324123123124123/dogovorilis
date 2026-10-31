@@ -134,7 +134,7 @@ def test_assignment_is_not_blocked(authed: TestClient, world: World) -> None:
     load(world, ctx.ivan, 9)
     resp = assign(authed, world, ctx.ivan)
     assert resp.status_code == 200
-    assert resp.json()["assignee"]["id"] == str(ctx.ivan.id)
+    assert resp.json()["assignee"]["person_id"] == str(ctx.ivan.id)
 
 
 def test_other_executor_load_is_independent(authed: TestClient, world: World) -> None:

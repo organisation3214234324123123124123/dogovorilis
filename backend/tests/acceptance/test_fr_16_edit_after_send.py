@@ -170,8 +170,9 @@ def test_edit_writes_item_event_without_text(authed: TestClient, world: World) -
     assert "Секретный текст правки" not in json.dumps(rows[0].data, ensure_ascii=False)
 
 
-def test_edit_writes_analytics_event(authed: TestClient, world: World) -> None:
+def test_edit_writes_no_item_edited_analytics_event(authed: TestClient, world: World) -> None:
     item = sent_item(world, make_ctx(world))
-    before = world.db.query(AnalyticsEvent).filter_by(item_id=item.id).count()
     patch(authed, item, {"what": "Новое"})
-    assert world.db.query(AnalyticsEvent).filter_by(item_id=item.id).count() > before
+    world.db.expire_all()
+    names = [e.name for e in world.db.query(AnalyticsEvent).filter_by(item_id=item.id).all()]
+    assert "item_edited" not in names

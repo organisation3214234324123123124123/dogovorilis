@@ -95,6 +95,10 @@ def has_agenda_item(db: Session, meeting_id: uuid.UUID, agenda_id: uuid.UUID) ->
     return any(a.id == agenda_id for a in repository.agenda(db, meeting_id))
 
 
+def live_meeting_id(db: Session, series_id: uuid.UUID) -> uuid.UUID | None:
+    return repository.live_meeting_id(db, series_id)
+
+
 def is_present(db: Session, meeting_id: uuid.UUID, person_id: uuid.UUID) -> bool:
     return repository.is_present(db, meeting_id, person_id)
 

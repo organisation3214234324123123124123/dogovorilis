@@ -5,7 +5,10 @@ import re
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
+from functools import lru_cache
 from typing import Any, Protocol
+
+import pymorphy3
 
 WEEKDAYS = (
     ("понедельник", "понедельника", "понедельнику"),
@@ -119,8 +122,21 @@ def _stems(name: str) -> list[tuple[str, str]]:
     return variants
 
 
+@lru_cache(maxsize=1)
+def _morph() -> pymorphy3.MorphAnalyzer:
+    return pymorphy3.MorphAnalyzer()
+
+
+@lru_cache(maxsize=4096)
+def _lemmas(word: str) -> frozenset[str]:
+    return frozenset(_norm(p.normal_form) for p in _morph().parse(word))
+
+
 def _matches(name: str, word: str) -> bool:
+    """Слово - имя или фамилия в любом падеже: общая начальная форма, иначе правила окончаний."""
     lowered = _norm(word)
+    if _lemmas(lowered) & _lemmas(_norm(name)):
+        return True
     return any(
         len(stem) >= 2 and re.fullmatch(re.escape(stem) + endings, lowered) is not None
         for stem, endings in _stems(_norm(name))

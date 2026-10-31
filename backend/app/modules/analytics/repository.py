@@ -23,6 +23,13 @@ def exists_since(db: Session, name: str, item_id: uuid.UUID, since: datetime) ->
     return db.scalar(stmt.limit(1)) is not None
 
 
+def exists_for_meeting(db: Session, name: str, meeting_id: uuid.UUID) -> bool:
+    stmt = select(AnalyticsEvent.id).where(
+        AnalyticsEvent.name == name, AnalyticsEvent.meeting_id == meeting_id
+    )
+    return db.scalar(stmt.limit(1)) is not None
+
+
 def stream_between(
     db: Session, start: datetime | None, end: datetime | None
 ) -> Iterator[AnalyticsEvent]:

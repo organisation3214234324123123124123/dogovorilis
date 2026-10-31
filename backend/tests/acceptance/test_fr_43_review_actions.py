@@ -167,7 +167,7 @@ def test_reassign_makes_item_pending_for_new_assignee(
     resp = act(authed, item, "reassign", assignee_person_id=str(new.id))
     assert resp.status_code == 200
     assert resp.json()["status"] == "pending"
-    assert resp.json()["assignee"]["id"] == str(new.id)
+    assert resp.json()["assignee"]["person_id"] == str(new.id)
 
 
 def test_reassign_queues_confirm_request_for_new_assignee(authed: TestClient, world: World) -> None:
@@ -318,7 +318,7 @@ def test_missing_if_match_is_validation_error(authed: TestClient, world: World) 
     ],
     ids=["done", "reschedule", "cancel", "reassign"],
 )
-def test_each_action_writes_review_action_and_journal(
+def test_each_action_writes_host_journal_row(
     authed: TestClient, world: World, action: str, extra: dict, logged: ItemAction
 ) -> None:
     item = make(world)
@@ -326,8 +326,6 @@ def test_each_action_writes_review_action_and_journal(
         extra = {"assignee_person_id": str(second_person(world).id)}
     with frozen(authed, world.user, NOW):
         assert act(authed, item, action, **extra).status_code == 200
-    events = events_named(world.db, "review_action", item_id=item.id)
-    assert [e.props["action"] for e in events] == [action]
     rows = journal(world, item, logged)
     assert len(rows) == 1
     assert rows[0].actor_type == ActorType.HOST

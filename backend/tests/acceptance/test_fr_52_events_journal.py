@@ -213,12 +213,12 @@ def test_anonymize_replaces_assignee_name_by_id(
     add_member(world.db, world.series, person)
     live(world)
     item = create_item(authed, world, "Подготовить отчёт к пятнице", person)
-    assert last_frame(world, item["id"])["assignee"]["id"] == str(person.id)
+    assert last_frame(world, item["id"])["assignee"]["person_id"] == str(person.id)
 
     anonymize(authed, admin, person)
 
     assignee = last_frame(world, item["id"])["assignee"]
-    assert assignee["id"] == str(person.id)
+    assert assignee["person_id"] == str(person.id)
     assert ALIAS.fullmatch(assignee["full_name"])
 
 
@@ -235,7 +235,7 @@ def test_anonymize_replaces_assignee_name_by_id_even_if_person_was_renamed(
     anonymize(authed, admin, person)
 
     assignee = last_frame(world, item["id"])["assignee"]
-    assert assignee["id"] == str(person.id)
+    assert assignee["person_id"] == str(person.id)
     assert ALIAS.fullmatch(assignee["full_name"])
 
 
@@ -283,7 +283,7 @@ def test_anonymize_short_name_not_searched_in_free_text_but_replaced_by_id(
 
     frame = last_frame(world, item["id"])
     assert frame["raw_text"] == "Январский релиз: левый отчёт"
-    assert frame["assignee"]["id"] == str(person.id)
+    assert frame["assignee"]["person_id"] == str(person.id)
     assert ALIAS.fullmatch(frame["assignee"]["full_name"])
 
 
