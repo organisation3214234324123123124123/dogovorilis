@@ -32,6 +32,7 @@ POSTPONED_HOUR = 9
 SMTP_TIMEOUT_SEC = 10
 SMTPS_PORT = 465
 FROM_NAME = "Договорились"
+MESSAGE_ID_DOMAIN = "dogovorilis"
 STALE_STATUSES = {
     NotificationType.CONFIRM_REQUEST: (
         ItemStatus.ACCEPTED,
@@ -98,6 +99,7 @@ def deliver(mail: Notification) -> None:
     message["Subject"] = letter.subject
     message["From"] = formataddr((name, settings.mail_from))
     message["To"] = address
+    message["Message-ID"] = f"<{mail.id}@{MESSAGE_ID_DOMAIN}>"
     if reply_to:
         message["Reply-To"] = reply_to
     message.set_content(letter.text)
