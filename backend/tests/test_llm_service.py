@@ -56,8 +56,8 @@ def test_participants_are_id_and_first_name_only(world, persons) -> None:
     client = FakeLLM(reply())
     run(world, persons, client)
     assert client.calls[0]["payload"]["participants"] == [
-        {"id": str(persons[0].id), "name": "Иван"},
-        {"id": str(persons[1].id), "name": "Анна"},
+        {"id": "p1", "name": "Иван"},
+        {"id": "p2", "name": "Анна"},
     ]
 
 
@@ -76,10 +76,10 @@ def test_system_prompt_is_active_version_from_db(world, persons) -> None:
     assert client.calls[0]["system_prompt"] == "SYSTEM-PARSE-V"
 
 
-def test_timeout_argument_is_eight_seconds(world, persons) -> None:
+def test_timeout_argument_is_four_seconds_per_attempt(world, persons) -> None:
     client = FakeLLM(reply())
     run(world, persons, client)
-    assert 7 < client.calls[0]["timeout"] <= 8
+    assert 3 < client.calls[0]["timeout"] <= 4
 
 
 @pytest.mark.fr("FR-21")
@@ -174,7 +174,7 @@ def test_timeout_falls_back_without_exception(world, persons) -> None:
     res = run(world, persons, client)
     assert res.outcome == LlmOutcome.TIMEOUT
     assert res.what is None
-    assert len(client.calls) == 1
+    assert len(client.calls) == 2  # одна повторная попытка при сбое
 
 
 def test_provider_error_falls_back_without_exception(world, persons) -> None:
