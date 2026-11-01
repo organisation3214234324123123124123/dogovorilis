@@ -13,7 +13,9 @@ def _ids(item: Item) -> dict:
     return {"item_id": item.id, "meeting_id": item.meeting_id, "series_id": item.series_id}
 
 
-def recalc(db: Session, item: Item, today: date, name: str | None) -> bool:
+def recalc(
+    db: Session, item: Item, today: date, name: str | None, namesakes: list[str] | None = None
+) -> bool:
     """Пересчёт открытых пробелов (FR-20, FR-24).
 
     Снявшееся условие проставляет resolved_at, вернувшееся открывает новый пробел, а отклонённый
@@ -41,7 +43,9 @@ def recalc(db: Session, item: Item, today: date, name: str | None) -> bool:
     for gap_type in wanted:
         if gap_type in open_by_type:
             continue
-        question = default_question(gap_type, name=name, due_text=item.due_text)
+        question = default_question(
+            gap_type, name=name, due_text=item.due_text, namesakes=namesakes
+        )
         repository.add(db, item.id, gap_type, GapSource.RULE, question)
         analytics.track(db, "gap_detected", type=gap_type.value, source="rule", **_ids(item))
         changed = True
