@@ -315,3 +315,19 @@ def match_agenda(
 
 def purge_old_calls(db: Session, cutoff: datetime, limit: int) -> int:
     return repository.delete_calls_before(db, cutoff, limit)
+
+
+def recent_calls(db: Session, limit: int, owner_id: uuid.UUID) -> list[LlmCall]:
+    return repository.recent_calls(db, limit, owner_id)
+
+
+def latest_calls(db: Session, limit: int) -> list[LlmCall]:
+    return repository.latest_calls(db, limit)
+
+
+def try_check_lock(db: Session) -> bool:
+    return repository.try_check_lock(db)
+
+
+def standalone_window(db: Session, window_sec: int) -> tuple[int, datetime | None, datetime]:
+    return repository.standalone_window(db, window_sec)

@@ -231,6 +231,20 @@ def queue_item_changed(db: Session, item: Item, old: dict[str, object]) -> None:
         )
 
 
+def fast_forward(
+    db: Session,
+    owner_id: uuid.UUID,
+    types: list[NotificationType],
+    series_id: uuid.UUID | None,
+    now: datetime,
+) -> list[dict]:
+    return repository.move_queued_to(db, owner_id, types, series_id, now)
+
+
+def owned_ids(db: Session, owner_id: uuid.UUID, ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    return repository.owned_ids(db, owner_id, ids)
+
+
 def cancel_queued_for_person(db: Session, person_id: uuid.UUID) -> int:
     return repository.cancel_queued_for_person(db, person_id)
 

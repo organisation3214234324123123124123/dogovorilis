@@ -1,9 +1,11 @@
+import uuid
 from datetime import datetime
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.modules.llm.models import LlmCall, LlmPrompt, LlmTask
+from app.modules.series.models import Meeting, Series
 
 
 def list_prompts(db: Session) -> list[LlmPrompt]:
@@ -48,3 +50,44 @@ def delete_calls_before(db: Session, cutoff: datetime, limit: int) -> int:
     )
     db.flush()
     return result.rowcount
+
+
+CHECK_LOCK_KEY = 7_302_041_966_411
+
+
+def try_check_lock(db: Session) -> bool:
+    """Замок на одну проверку за раз; держится до конца транзакции."""
+    return bool(db.scalar(select(func.pg_try_advisory_xact_lock(CHECK_LOCK_KEY))))
+
+
+def recent_calls(db: Session, limit: int, owner_id: uuid.UUID) -> list[LlmCall]:
+    """Вызовы по встречам ведущего и без встречи (в них нет текстов)."""
+    own = select(Meeting.id).join(Series, Series.id == Meeting.series_id)
+    stmt = (
+        select(LlmCall)
+        .where(
+            or_(
+                LlmCall.meeting_id.is_(None),
+                LlmCall.meeting_id.in_(own.where(Series.owner_user_id == owner_id)),
+            )
+        )
+        .order_by(LlmCall.created_at.desc())
+        .limit(limit)
+    )
+    return list(db.scalars(stmt))
+
+
+def latest_calls(db: Session, limit: int) -> list[LlmCall]:
+    return list(db.scalars(select(LlmCall).order_by(LlmCall.created_at.desc()).limit(limit)))
+
+
+def standalone_window(db: Session, window_sec: int) -> tuple[int, datetime | None, datetime]:
+    """Вызовы без встречи за окно: число, самый старый и now БД."""
+    now = func.clock_timestamp()
+    row = db.execute(
+        select(func.count(), func.min(LlmCall.created_at), now).where(
+            LlmCall.meeting_id.is_(None),
+            LlmCall.created_at > now - func.make_interval(0, 0, 0, 0, 0, 0, window_sec),
+        )
+    ).one()
+    return row[0], row[1], row[2]

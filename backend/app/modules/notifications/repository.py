@@ -1,12 +1,14 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import func, null, select, update
+from sqlalchemy import func, null, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.modules.auth.models import User
+from app.modules.items.models import Item
 from app.modules.notifications.models import Notification, NotificationStatus, NotificationType
-from app.modules.series.models import Meeting
+from app.modules.series.models import Meeting, Person, Series
 
 
 def queued_for_update(
@@ -123,6 +125,60 @@ def release_stuck(db: Session, claimed_before: datetime) -> None:
         .values(status=NotificationStatus.QUEUED, claimed_at=None)
     )
     db.flush()
+
+
+def move_queued_to(
+    db: Session,
+    owner_id: uuid.UUID,
+    types: list[NotificationType],
+    series_id: uuid.UUID | None,
+    when: datetime,
+) -> list[dict]:
+    """Письма в очереди по встречам ведущего: scheduled_for = when; возвращает, что сдвинуто."""
+    stmt = (
+        select(Notification, func.coalesce(Person.email, User.email), Item.what)
+        .join(Meeting, Notification.meeting_id == Meeting.id)
+        .join(Series, Meeting.series_id == Series.id)
+        .outerjoin(Person, Notification.recipient_person_id == Person.id)
+        .outerjoin(User, Notification.recipient_user_id == User.id)
+        .outerjoin(Item, Notification.item_id == Item.id)
+        .where(
+            Series.owner_user_id == owner_id,
+            Notification.status == NotificationStatus.QUEUED,
+            Notification.type.in_(types),
+        )
+        .order_by(Notification.scheduled_for, Notification.id)
+        .with_for_update(of=Notification)
+    )
+    if series_id:
+        stmt = stmt.where(Series.id == series_id)
+    moved = []
+    for row, email, what in db.execute(stmt):
+        moved.append(
+            {
+                "type": row.type,
+                "recipient_email": email,
+                "item_what": what,
+                "was_scheduled_for": row.scheduled_for,
+            }
+        )
+        row.scheduled_for = when
+    db.flush()
+    return moved
+
+
+def owned_ids(db: Session, owner_id: uuid.UUID, ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    """Из ids: уведомления встреч серий ведущего и адресованные ему самому."""
+    stmt = (
+        select(Notification.id)
+        .outerjoin(Meeting, Notification.meeting_id == Meeting.id)
+        .outerjoin(Series, Meeting.series_id == Series.id)
+        .where(
+            Notification.id.in_(ids),
+            or_(Series.owner_user_id == owner_id, Notification.recipient_user_id == owner_id),
+        )
+    )
+    return set(db.scalars(stmt))
 
 
 def claim_due(db: Session, now: datetime, limit: int) -> list[Notification]:

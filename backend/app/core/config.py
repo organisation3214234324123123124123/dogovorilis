@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     demo_data: str = "0"  # "1": load --if-empty загружает демо
     demo_team_emails: str = ""
     public_base_url: str = "http://localhost:8080"
+    demo_mailbox_url: str = ""  # HTTP API Mailpit для /demo/mailbox, например http://mailpit:8025
 
     llm_api_key: str = ""
     llm_base_url: str = "https://llm.api.cloud.yandex.net/v1"
