@@ -27,6 +27,7 @@ def check(db: Session) -> Health:
     llm = LlmHealth(
         available=available,
         provider=(urlsplit(settings.llm_base_url).hostname or "unknown") if available else "stub",
+        model=settings.llm_model.strip() if available else "stub",
     )
     now = datetime.now(UTC)
     queued, failed, oldest, worker_last_run = 0, 0, None, None

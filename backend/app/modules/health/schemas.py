@@ -15,6 +15,9 @@ class LlmHealth(BaseModel):
     provider: str = Field(
         description="Хост LLM_BASE_URL; stub - если LLM недоступна", examples=["stub"]
     )
+    model: str = Field(
+        description="Имя модели из LLM_MODEL; stub - если LLM недоступна", examples=["stub"]
+    )
 
 
 class Health(BaseModel):

@@ -108,7 +108,7 @@ def test_health_llm_is_stub_when_key_set_but_model_empty(
     send_due_mails()
     r = get_health(client)
     assert r.status_code == 200
-    assert r.json()["llm"] == {"available": False, "provider": "stub"}
+    assert r.json()["llm"] == {"available": False, "provider": "stub", "model": "stub"}
     assert r.json()["status"] == "degraded"
 
 
@@ -118,7 +118,7 @@ def test_health_llm_provider_is_host_of_base_url(
     set_llm(monkeypatch, "k" * 20, base_url="https://api.groq.com/openai/v1")
     send_due_mails()
     r = get_health(client)
-    assert r.json()["llm"] == {"available": True, "provider": "api.groq.com"}
+    assert r.json()["llm"] == {"available": True, "provider": "api.groq.com", "model": "model"}
     assert r.json()["status"] == "ok"
 
 

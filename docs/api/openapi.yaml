@@ -1071,6 +1071,12 @@ components:
           description: false - работает заглушка (нет ключа или модели)
           title: Available
           type: boolean
+        model:
+          description: Имя модели из LLM_MODEL; stub - если LLM недоступна
+          examples:
+          - stub
+          title: Model
+          type: string
         provider:
           description: Хост LLM_BASE_URL; stub - если LLM недоступна
           examples:
@@ -1080,6 +1086,7 @@ components:
       required:
       - available
       - provider
+      - model
       title: LlmHealth
       type: object
     LlmTask:
