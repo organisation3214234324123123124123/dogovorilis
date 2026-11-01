@@ -84,7 +84,7 @@ def test_timeout_argument_is_four_seconds_per_attempt(world, persons) -> None:
 
 @pytest.mark.fr("FR-21")
 def test_valid_reply_is_returned(world, persons) -> None:
-    client = FakeLLM(reply(assignee_id=str(persons[0].id)))
+    client = FakeLLM(reply(assignee_id="p1"))
     res = run(world, persons, client)
     assert res.outcome == LlmOutcome.OK
     assert res.what == "Разобраться с выгрузкой"
@@ -191,7 +191,7 @@ def enrich(world, persons, client, item):
 
 def test_enrich_fills_empty_fields(world, persons) -> None:
     item = world.item(raw_text=TEXT)
-    enrich(world, persons, FakeLLM(reply(assignee_id=str(persons[0].id))), item)
+    enrich(world, persons, FakeLLM(reply(assignee_id="p1")), item)
     assert item.what == "Разобраться с выгрузкой"
     assert item.assignee_person_id == persons[0].id
     assert item.due_date == date(2026, 10, 16)
@@ -206,7 +206,7 @@ def test_enrich_keeps_fields_found_by_rules(world, persons) -> None:
         due_date=date(2026, 11, 1),
         due_text="к 1 ноября",
     )
-    enrich(world, persons, FakeLLM(reply(assignee_id=str(persons[0].id))), item)
+    enrich(world, persons, FakeLLM(reply(assignee_id="p1")), item)
     assert item.what == "Выгрузка"
     assert item.assignee_person_id == persons[1].id
     assert item.due_date == date(2026, 11, 1)
@@ -215,7 +215,7 @@ def test_enrich_keeps_fields_found_by_rules(world, persons) -> None:
 
 def test_enrich_adds_only_what_rules_missed(world, persons) -> None:
     item = world.item(raw_text=TEXT, assignee_person_id=persons[1].id)
-    enrich(world, persons, FakeLLM(reply(assignee_id=str(persons[0].id))), item)
+    enrich(world, persons, FakeLLM(reply(assignee_id="p1")), item)
     assert item.assignee_person_id == persons[1].id
     assert item.due_date == date(2026, 10, 16)
 
@@ -232,7 +232,7 @@ def test_manual_field_is_never_changed_even_when_empty(world, persons, field, co
 
 def test_manual_assignee_is_never_changed(world, persons) -> None:
     item = world.item(raw_text=TEXT, manual_fields=["assignee_person_id"])
-    enrich(world, persons, FakeLLM(reply(assignee_id=str(persons[0].id))), item)
+    enrich(world, persons, FakeLLM(reply(assignee_id="p1")), item)
     assert item.assignee_person_id is None
 
 
@@ -365,3 +365,71 @@ def test_nouns_ending_on_t_are_not_infinitives(world, persons, what) -> None:
 @pytest.mark.parametrize("what", ["Идти на встречу", "Привести в порядок", "Помочь коллеге"])
 def test_stoplist_does_not_break_real_infinitives(world, persons, what) -> None:
     assert run(world, persons, FakeLLM(reply(what=what))).what == what
+
+
+# --- короткие id, тёзки, бюджет сверки с повесткой ---
+
+
+@pytest.fixture
+def namesakes(world, persons) -> list[Person]:
+    dima1 = make_person(world.db, world.user, world.org, full_name="Дмитрий Белов")
+    dima2 = make_person(world.db, world.user, world.org, full_name="Дмитрий Козлов")
+    world.db.flush()
+    return [*persons, dima1, dima2]
+
+
+def test_short_id_from_model_maps_back_to_person(world, persons) -> None:
+    res = run(world, persons, FakeLLM(reply(assignee_id="p2")))
+    assert res.assignee_id == str(persons[1].id)
+
+
+def test_real_person_id_from_model_is_not_accepted(world, persons) -> None:
+    res = run(world, persons, FakeLLM(reply(assignee_id=str(persons[1].id))))
+    assert res.assignee_id is None
+
+
+def test_unknown_short_id_is_dropped(world, persons) -> None:
+    res = run(world, persons, FakeLLM(reply(assignee_id="p9")))
+    assert res.assignee_id is None
+
+
+@pytest.mark.fr("OQ-08")
+def test_model_choice_among_namesakes_is_dropped(world, namesakes) -> None:
+    res = run(world, namesakes, FakeLLM(reply(assignee_id="p3")), text="Дмитрий пришлёт отчёт")
+    assert res.assignee_id is None
+
+
+@pytest.mark.fr("OQ-08")
+def test_model_choice_without_namesake_is_kept(world, namesakes) -> None:
+    res = run(world, namesakes, FakeLLM(reply(assignee_id="p2")), text="Анна пришлёт отчёт")
+    assert res.assignee_id == str(namesakes[1].id)
+
+
+@pytest.mark.fr("FR-27")
+def test_agenda_matching_keeps_eight_second_budget(world) -> None:
+    from app.modules.llm import service
+    from app.modules.llm.models import LlmTask
+
+    activate_prompt(world.db, LlmTask.AGENDA, "AGENDA")
+    client = FakeLLM(json.dumps({"pairs": []}))
+    service.match_agenda(world.db, client, meeting_id=world.meeting.id, agenda=[], decisions=[])
+    assert 7 < client.calls[0]["timeout"] <= 8
+
+
+def test_provider_rate_limit_makes_one_request_per_parse(world, persons) -> None:
+    import httpx
+
+    from app.modules.llm.client import OpenAICompatClient
+
+    seen: list = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(429, json={"error": "rate limit"})
+
+    client = OpenAICompatClient(
+        "https://llm.example.test/v1", "k", "m", httpx.MockTransport(handler)
+    )
+    res = run(world, persons, client)
+    assert res.outcome != LlmOutcome.OK
+    assert len(seen) == 1

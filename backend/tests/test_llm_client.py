@@ -223,3 +223,17 @@ def test_blank_model_with_key_gives_stub(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("LLM_MODEL", "   ")
     get_settings.cache_clear()
     assert isinstance(get_llm_client(), StubLLMClient)
+
+
+def test_rate_limit_from_provider_is_not_retried() -> None:
+    from app.modules.llm.client import LLMError
+
+    seen: list = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(429, json={"error": "rate limit"})
+
+    with pytest.raises(LLMError):
+        make_client(handler).complete("s", PAYLOAD, timeout=8)
+    assert len(seen) == 1

@@ -38,6 +38,10 @@ class LLMError(Exception):
     pass
 
 
+class LLMRateLimited(LLMError):
+    """Провайдер ответил 429: лимит исчерпан, повтор только тратит квоту."""
+
+
 class LLMTimeout(LLMError):
     pass
 
@@ -97,10 +101,12 @@ class OpenAICompatClient:
             },
         }
         resp = self._post(body, timeout)
-        if 400 <= resp.status_code < 500:
+        if resp.status_code != 429 and 400 <= resp.status_code < 500:
             # провайдер не принял response_format: повтор без него, результат всё равно проверяется
             body.pop("response_format")
             resp = self._post(body, timeout)
+        if resp.status_code == 429:
+            raise LLMRateLimited("http 429")
         if resp.status_code >= 400:
             raise LLMError(f"http {resp.status_code}")
         try:

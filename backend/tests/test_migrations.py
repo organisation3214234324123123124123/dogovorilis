@@ -108,3 +108,45 @@ def test_fr14_downgrade_drops_journal_and_upgrade_restores_it(scratch_url: str) 
     command.upgrade(cfg, "head")
     assert "meeting_events" in public_tables(scratch_url)
     assert "events_version" in meetings_columns(scratch_url)
+
+
+def _parse_prompts(url: str) -> list[tuple[int, bool]]:
+    engine = create_engine(url)
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text("SELECT version, is_active FROM llm_prompts WHERE task = 'parse' ORDER BY 1")
+            )
+            return [(r[0], r[1]) for r in rows]
+    finally:
+        engine.dispose()
+
+
+def _use_active_parse_prompt(url: str) -> None:
+    engine = create_engine(url)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO llm_calls (id, task, provider, model, prompt_id, outcome) "
+                    "SELECT gen_random_uuid(), task, 'fake', 'fake-1', id, 'ok' "
+                    "FROM llm_prompts WHERE task = 'parse' AND is_active"
+                )
+            )
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.fr("FR-12")
+def test_parse_prompt_downgrade_with_calls_keeps_one_active(scratch_url: str) -> None:
+    cfg = alembic_config()
+    command.upgrade(cfg, "head")
+    _use_active_parse_prompt(scratch_url)
+    reset_caches()
+    command.downgrade(cfg, "0012")
+    active = [v for v, on in _parse_prompts(scratch_url) if on]
+    assert active == [2]
+    reset_caches()
+    command.upgrade(cfg, "head")
+    active = [v for v, on in _parse_prompts(scratch_url) if on]
+    assert active == [3]

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Item, Person
 from app.modules.llm import repository
-from app.modules.llm.client import LLMClient, LLMError, LLMResponse, LLMTimeout
+from app.modules.llm.client import LLMClient, LLMError, LLMRateLimited, LLMResponse, LLMTimeout
 from app.modules.llm.models import LlmCall, LlmOutcome, LlmPrompt, LlmTask
 from app.modules.llm.schemas import PromptCreate
 
@@ -191,6 +191,7 @@ def _run(
     prompt: LlmPrompt,
     meeting_id: uuid.UUID | None,
     payload: dict,
+    attempt_seconds: float = TIMEOUT_SECONDS,
 ) -> tuple[LlmOutcome, dict | None]:
     started = time.perf_counter()
     deadline = time.monotonic() + TIMEOUT_SECONDS
@@ -204,10 +205,13 @@ def _run(
             break
         try:
             response: LLMResponse = client.complete(
-                prompt.text, payload, timeout=min(ATTEMPT_SECONDS, remaining)
+                prompt.text, payload, timeout=min(attempt_seconds, remaining)
             )
         except LLMTimeout:
             outcome = LlmOutcome.TIMEOUT
+        except LLMRateLimited:
+            outcome = LlmOutcome.INVALID_OUTPUT
+            break
         except LLMError:
             outcome = LlmOutcome.INVALID_OUTPUT
         else:
@@ -220,7 +224,7 @@ def _run(
                 outcome = LlmOutcome.OK
                 break
             outcome = LlmOutcome.INVALID_OUTPUT
-        if attempt == 0:
+        if attempt == 0 and deadline - time.monotonic() > RETRY_PAUSE_SECONDS:
             time.sleep(RETRY_PAUSE_SECONDS)
     repository.add_call(
         db,
@@ -257,11 +261,10 @@ def parse_text(
         "weekday": WEEKDAYS[today.weekday()],
         "participants": [{"id": f"p{i}", "name": _first_name(p)} for i, p in enumerate(persons, 1)],
     }
-    outcome, data = _run(db, client, prompt, meeting_id, payload)
+    outcome, data = _run(db, client, prompt, meeting_id, payload, ATTEMPT_SECONDS)
     if outcome != LlmOutcome.OK or data is None:
         return ParseResult(outcome)
     ids = {f"p{i}": str(p.id) for i, p in enumerate(persons, 1)}
-    ids.update({str(p.id): str(p.id) for p in persons})
     fields = _validate(data, today, ids)
     if _has_namesake(fields["assignee_id"], persons):
         fields["assignee_id"] = None
