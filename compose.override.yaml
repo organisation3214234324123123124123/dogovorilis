@@ -7,10 +7,22 @@ services:
     environment:
       DEV_MODE: "1"
       DEMO_DATA: "1"
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      DEMO_MAILBOX_URL: http://mailpit:8025
+  # Локальная почта для показа: письма не уходят наружу, веб-интерфейс на http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "8025:8025"
   # Воркеру и beat нужен DEV_MODE, иначе проверка слабого SECRET_KEY не даст им стартовать.
   worker:
     environment:
       DEV_MODE: "1"
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
   beat:
     environment:
       DEV_MODE: "1"
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
