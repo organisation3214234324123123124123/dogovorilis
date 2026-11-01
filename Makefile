@@ -38,6 +38,15 @@ db-backup:
 db-restore:
 	bash scripts/restore-db.sh $(f)
 
+.PHONY: psql shell
+# psql в базе стека
+psql:
+	$(COMPOSE) exec db psql -U $${POSTGRES_USER:-leaderhelp} -d $${POSTGRES_DB:-leaderhelp}
+
+# shell в контейнере бэкенда
+shell:
+	$(COMPOSE) exec backend bash
+
 install:
 	cd backend && $(TO) 300 uv sync
 
