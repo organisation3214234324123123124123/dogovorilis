@@ -15,6 +15,8 @@ from app.modules.llm.models import LlmCall, LlmOutcome, LlmPrompt, LlmTask
 from app.modules.llm.schemas import PromptCreate
 
 TIMEOUT_SECONDS = 8
+ATTEMPT_SECONDS = 4
+RETRY_PAUSE_SECONDS = 0.3
 QUESTION_MAX = 120
 WEEKDAYS = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
 INFINITIVE = re.compile(r"^[а-яё]+(?:ть|ти|чь)(?:ся|сь)?$")
@@ -128,6 +130,15 @@ def _first_name(person: Person) -> str:
     return parts[0] if parts else ""
 
 
+def _has_namesake(assignee_id: str | None, persons: list[Person]) -> bool:
+    """Модель видит имена без фамилий, тёзок не различит: её выбор среди них отбрасываем (OQ-08)."""
+    chosen = next((p for p in persons if str(p.id) == assignee_id), None)
+    if chosen is None:
+        return False
+    first = _first_name(chosen).lower().replace("ё", "е")
+    return sum(_first_name(p).lower().replace("ё", "е") == first for p in persons) > 1
+
+
 def _text(value: Any, limit: int) -> str | None:
     if isinstance(value, str) and value.strip() and len(value) <= limit:
         return value
@@ -152,14 +163,12 @@ def _due_date(value: Any, today: date) -> date | None:
     return parsed if parsed >= today else None
 
 
-def _validate(data: dict, today: date, participant_ids: set[str]) -> dict[str, Any]:
+def _validate(data: dict, today: date, participant_ids: dict[str, str]) -> dict[str, Any]:
     assignee = data.get("assignee_id")
     vague = data.get("vague_action")
     return {
         "what": _what(data.get("what")),
-        "assignee_id": assignee
-        if isinstance(assignee, str) and assignee in participant_ids
-        else None,
+        "assignee_id": participant_ids.get(assignee) if isinstance(assignee, str) else None,
         "due_date": _due_date(data.get("due_date"), today),
         "due_text": _text(data.get("due_text"), 100),
         "done_criteria": _text(data.get("done_criteria"), 500),
@@ -189,26 +198,30 @@ def _run(
     tokens_out: int | None = None
     outcome = LlmOutcome.INVALID_OUTPUT
     data: dict | None = None
-    for _ in range(2):
+    for attempt in range(2):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            outcome = LlmOutcome.TIMEOUT
             break
         try:
-            response: LLMResponse = client.complete(prompt.text, payload, timeout=remaining)
+            response: LLMResponse = client.complete(
+                prompt.text, payload, timeout=min(ATTEMPT_SECONDS, remaining)
+            )
         except LLMTimeout:
             outcome = LlmOutcome.TIMEOUT
-            break
         except LLMError:
-            break
-        if response.input_tokens is not None:
-            tokens_in = (tokens_in or 0) + response.input_tokens
-        if response.output_tokens is not None:
-            tokens_out = (tokens_out or 0) + response.output_tokens
-        data = _load(response.content)
-        if data is not None:
-            outcome = LlmOutcome.OK
-            break
+            outcome = LlmOutcome.INVALID_OUTPUT
+        else:
+            if response.input_tokens is not None:
+                tokens_in = (tokens_in or 0) + response.input_tokens
+            if response.output_tokens is not None:
+                tokens_out = (tokens_out or 0) + response.output_tokens
+            data = _load(response.content)
+            if data is not None:
+                outcome = LlmOutcome.OK
+                break
+            outcome = LlmOutcome.INVALID_OUTPUT
+        if attempt == 0:
+            time.sleep(RETRY_PAUSE_SECONDS)
     repository.add_call(
         db,
         LlmCall(
@@ -242,12 +255,17 @@ def parse_text(
         "text": text,
         "today": today.isoformat(),
         "weekday": WEEKDAYS[today.weekday()],
-        "participants": [{"id": str(p.id), "name": _first_name(p)} for p in persons],
+        "participants": [{"id": f"p{i}", "name": _first_name(p)} for i, p in enumerate(persons, 1)],
     }
     outcome, data = _run(db, client, prompt, meeting_id, payload)
     if outcome != LlmOutcome.OK or data is None:
         return ParseResult(outcome)
-    return ParseResult(outcome, **_validate(data, today, {str(p.id) for p in persons}))
+    ids = {f"p{i}": str(p.id) for i, p in enumerate(persons, 1)}
+    ids.update({str(p.id): str(p.id) for p in persons})
+    fields = _validate(data, today, ids)
+    if _has_namesake(fields["assignee_id"], persons):
+        fields["assignee_id"] = None
+    return ParseResult(outcome, **fields)
 
 
 def enrich_item(

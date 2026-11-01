@@ -3,7 +3,7 @@
 import calendar
 import re
 from collections.abc import Collection, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from functools import lru_cache
 from typing import Any, Protocol
@@ -91,6 +91,7 @@ class ParsedLine:
     assignee_person_id: Any | None
     due_date: date | None
     due_text: str | None
+    namesakes: list[str] = field(default_factory=list)
 
 
 def _norm(word: str) -> str:
@@ -145,8 +146,8 @@ def _matches(name: str, word: str) -> bool:
 
 def _find_assignee(
     words: list[re.Match[str]], participants: Sequence[Participant]
-) -> tuple[Any | None, set[int]]:
-    """Тёзок без фамилии в строке не угадываем и возвращаем None (OQ-08)."""
+) -> tuple[Any | None, set[int], list[str]]:
+    """Исполнитель по имени из состава и список тёзок. Тёзок без фамилии не угадываем (OQ-08)."""
     hits: list[tuple[Participant, int, int | None]] = []
     for person in participants:
         parts = person.full_name.split()
@@ -163,14 +164,18 @@ def _find_assignee(
             hits.append((person, i, surname_at))
             break
     if not hits:
-        return None, set()
+        return None, set(), []
     with_surname = [h for h in hits if h[2] is not None]
     chosen = with_surname if with_surname else hits
     if len(chosen) != 1:
-        return None, set()
+        firsts = {_norm(h[0].full_name.split()[0]) for h in chosen}
+        namesakes = (
+            [h[0].full_name for h in chosen] if not with_surname and len(firsts) == 1 else []
+        )
+        return None, set(), namesakes
     person, index, surname_at = chosen[0]
     used = {index} | ({surname_at} if surname_at is not None else set())
-    return person.id, used
+    return person.id, used, []
 
 
 def _weekday_number(word: str) -> int:
@@ -265,7 +270,7 @@ def parse_line(
     manual_fields: Collection[str] = (),
 ) -> ParsedLine:
     words = list(_WORD.finditer(text))
-    assignee_id, used = _find_assignee(words, participants)
+    assignee_id, used, namesakes = _find_assignee(words, participants)
     due, due_match = _find_due(text, today)
 
     dropped = [words[i] for i in used]
@@ -283,4 +288,5 @@ def parse_line(
         "due_date": due,
         "due_text": due_match.group().strip()[:100] if due_match else None,
     }
-    return ParsedLine(**{k: (None if k in manual_fields else v) for k, v in parsed.items()})
+    kept = {k: (None if k in manual_fields else v) for k, v in parsed.items()}
+    return ParsedLine(**kept, namesakes=[] if "assignee_person_id" in manual_fields else namesakes)

@@ -148,7 +148,8 @@ def test_activation_is_visible_to_service(client: TestClient, db) -> None:
 def test_start_parse_prompt_is_seeded_by_migration(db) -> None:
     active = [p for p in rows(db) if p.is_active]
     assert len(active) == 1
-    assert active[0].version == 1
+    assert any(p.version == 1 for p in rows(db))  # стартовый промпт посеян миграцией
+    assert active[0].version == max(p.version for p in rows(db))  # активен последний
 
 
 def seeded_text(db) -> str:

@@ -468,7 +468,7 @@ def create_item(db: Session, user: User, meeting_id: uuid.UUID, body: ItemCreate
     for enrich in ENRICHERS:
         enrich(db, item)
     db.flush()
-    gaps_service.recalc(db, item, today, _assignee_name(db, item))
+    gaps_service.recalc(db, item, today, _assignee_name(db, item), parsed.namesakes)
     analytics_service.track(
         db, "decision_captured", source="manual", fields_filled=filled, **_ids(user, item)
     )

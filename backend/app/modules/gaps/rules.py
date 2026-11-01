@@ -42,12 +42,26 @@ def find_gaps(item: Gappable, today: date) -> list[GapType]:
     return found
 
 
+def _which_namesake(namesakes: list[str]) -> str:
+    """«Какой Дмитрий: Дмитрий Белов или Дмитрий Козлов?» (OQ-08): фамилии берём у себя."""
+    options = (
+        " или ".join([", ".join(namesakes[:-1]), namesakes[-1]])
+        if len(namesakes) > 1
+        else namesakes[0]
+    )
+    return f"Какой {namesakes[0].split()[0]}: {options}?"
+
+
 def default_question(
-    gap_type: GapType, *, name: str | None = None, due_text: str | None = None
+    gap_type: GapType,
+    *,
+    name: str | None = None,
+    due_text: str | None = None,
+    namesakes: list[str] | None = None,
 ) -> str:
     match gap_type:
         case GapType.NO_ASSIGNEE:
-            text = "Кто берёт это на себя?"
+            text = _which_namesake(namesakes) if namesakes else "Кто берёт это на себя?"
         case GapType.NO_DUE:
             text = f"{name[:60]}, к какому числу?" if name else "К какому числу?"
         case GapType.DUE_VAGUE:
@@ -61,9 +75,14 @@ def default_question(
 
 
 def question_for(
-    stored: str | None, gap_type: GapType, *, name: str | None, due_text: str | None
+    stored: str | None,
+    gap_type: GapType,
+    *,
+    name: str | None,
+    due_text: str | None,
+    namesakes: list[str] | None = None,
 ) -> str:
     """Вопрос пробела для ответа API: свой, если есть, иначе шаблон; всегда не длиннее 120."""
     if stored and stored.strip():
         return stored.strip()[:QUESTION_LIMIT]
-    return default_question(gap_type, name=name, due_text=due_text)
+    return default_question(gap_type, name=name, due_text=due_text, namesakes=namesakes)
