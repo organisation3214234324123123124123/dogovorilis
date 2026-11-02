@@ -10,9 +10,11 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import RateLimited
+from app.core.errors import NotFound, RateLimited
 from app.modules.auth.models import User
 from app.modules.demo.schemas import (
+    ExampleRead,
+    Examples,
     FastForwardRequest,
     FastForwardResult,
     GapView,
@@ -25,6 +27,7 @@ from app.modules.demo.schemas import (
     LlmView,
     Mailbox,
     MovedMail,
+    PublicCallRead,
     RulesView,
 )
 from app.modules.gaps.rules import find_gaps, question_for
@@ -40,6 +43,8 @@ from app.modules.series.models import Person
 CHECK_LIMIT = 20
 CHECK_WINDOW_SEC = 60
 MAILBOX_SCAN = 50
+EXAMPLES_CALLS = 20
+EXAMPLES_TZ = ZoneInfo("Europe/Moscow")
 
 mailbox_transport: httpx.BaseTransport | None = None
 
@@ -132,6 +137,70 @@ def _compare(db: Session, text: str, persons: list[Person], today: date) -> LlmC
             question=result.question,
         ),
     )
+
+
+def _person(n: int, full_name: str) -> Person:
+    return Person(id=uuid.UUID(int=n), full_name=full_name)
+
+
+EXAMPLE_PERSONS = [
+    _person(1, "Пётр Орлов"),
+    _person(2, "Дмитрий Белов"),
+    _person(3, "Светлана Ли"),
+]
+# Строки, где правила не справляются, а нейросеть справляется: в этом смысл страницы.
+EXAMPLE_TEXTS = {
+    1: "Дима обещал до конца следующей недели скинуть цифры по оттоку, они нужны Свете для отчёта",
+    2: "Пётр к пятнице пришлёт Дмитрию протокол, чтобы он согласовал сумму",
+    3: "Дмитрий глянет, что там с сервером, и отпишется",
+}
+_example_cache: dict[int, tuple[LlmCheckResult, datetime]] = {}
+
+
+def reset_example_cache() -> None:
+    _example_cache.clear()
+
+
+def examples(db: Session) -> Examples:
+    client = get_llm_client()
+    saved = dict(_example_cache)
+    return Examples(
+        live=not isinstance(client, StubLLMClient),
+        provider=client.provider,
+        model=client.model,
+        examples=[
+            ExampleRead(
+                id=i,
+                text=text,
+                result=saved[i][0] if i in saved else None,
+                saved_at=saved[i][1] if i in saved else None,
+            )
+            for i, text in EXAMPLE_TEXTS.items()
+        ],
+        calls=[
+            PublicCallRead.model_validate(c, from_attributes=True)
+            for c in llm_service.latest_calls(db, EXAMPLES_CALLS)
+        ],
+    )
+
+
+def run_example(db: Session, example_id: int) -> LlmCheckResult:
+    if example_id not in EXAMPLE_TEXTS:
+        raise NotFound("Такого примера нет")
+    _check_rate(db)
+    today = datetime.now(EXAMPLES_TZ).date()
+    result = _compare(db, EXAMPLE_TEXTS[example_id], EXAMPLE_PERSONS, today)
+    # Сбой (например, кончился лимит ключа) не затирает последний хороший ответ
+    if result.llm.outcome == LlmOutcome.OK or example_id not in _example_cache:
+        _example_cache[example_id] = (result, datetime.now(UTC))
+    return result
+
+
+def try_text(db: Session, text: str) -> LlmCheckResult:
+    """Своя строка с публичной страницы: та же выдуманная команда, тот же замок и лимит."""
+    _check_rate(db)
+    today = datetime.now(EXAMPLES_TZ).date()
+    return _compare(db, text, EXAMPLE_PERSONS, today)
 
 
 def llm_calls(db: Session, user: User, limit: int) -> list[LlmCallRead]:

@@ -1,23 +1,64 @@
 import uuid
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Query
+from fastapi.responses import HTMLResponse
 
 from app.core.db import SessionDep
 from app.core.errors import errors
 from app.core.security import CurrentUser
 from app.modules.demo import service
 from app.modules.demo.schemas import (
+    Examples,
     FastForwardRequest,
     FastForwardResult,
     LiveEvents,
     LlmCallRead,
     LlmCheckRequest,
     LlmCheckResult,
+    LlmTryRequest,
     Mailbox,
 )
 
 router = APIRouter(prefix="/demo", tags=["demo"])
+PAGE = (Path(__file__).parent / "llm_page.html").read_text(encoding="utf-8")
+
+
+@router.get("/llm/page", include_in_schema=False, response_class=HTMLResponse)
+def llm_page() -> HTMLResponse:
+    return HTMLResponse(PAGE)
+
+
+@router.get(
+    "/llm/examples",
+    summary="Примеры для страницы нейросети",
+    response_model=Examples,
+)
+def llm_examples(db: SessionDep) -> Examples:
+    return service.examples(db)
+
+
+@router.post(
+    "/llm/examples/{example_id}/run",
+    summary="Спросить нейросеть про пример",
+    response_model=LlmCheckResult,
+    responses=errors(404, 422, 429),
+)
+def llm_example_run(example_id: int, db: SessionDep) -> LlmCheckResult:
+    return service.run_example(db, example_id)
+
+
+@router.post(
+    "/llm/try",
+    summary="Своя строка для страницы нейросети",
+    description="Без входа. Строка разбирается для выдуманной команды (Пётр Орлов, Дмитрий "
+    "Белов, Светлана Ли) правилами и нейросетью; замок и лимит те же, что у примеров.",
+    response_model=LlmCheckResult,
+    responses=errors(422, 429),
+)
+def llm_try(body: LlmTryRequest, db: SessionDep) -> LlmCheckResult:
+    return service.try_text(db, body.text.strip())
 
 
 @router.post(

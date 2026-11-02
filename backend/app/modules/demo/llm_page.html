@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Как нейросеть помогает</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1b1f24;--muted:#5d6672;--line:#dde1e6;--accent:#2563eb;--on-accent:#fff;--ok:#15803d;--ok-bg:rgba(21,128,61,.14);--warn:#b45309;--accent-bg:rgba(37,99,235,.08)}
+@media (prefers-color-scheme:dark){:root{--bg:#12151a;--card:#1b2027;--text:#e6e9ee;--muted:#9aa4b2;--line:#2c333d;--accent:#5b9bff;--on-accent:#0b1220;--ok:#4ade80;--ok-bg:rgba(74,222,128,.16);--warn:#fbbf24;--accent-bg:rgba(91,155,255,.12)}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:900px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.6rem;line-height:1.25;margin:0 0 8px}
+h2{font-size:1.15rem;margin:30px 0 10px}
+h3{font-size:1rem;margin:0 0 6px}
+p{margin:8px 0}
+.muted{color:var(--muted)}
+.status{display:inline-block;padding:2px 10px;border:1px solid var(--line);border-radius:999px;font-size:.9rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:14px 0}
+.label{font-size:.85rem;color:var(--muted);margin:0}
+.line{font-size:1.05rem;font-weight:600;margin:2px 0 8px;overflow-wrap:anywhere}
+.hard{margin:0 0 12px}
+.flow{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px 26px;counter-reset:s}
+.flow li{position:relative;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:.95rem;counter-increment:s}
+.flow li::before{content:counter(s);display:inline-block;min-width:1.5em;height:1.5em;line-height:1.5em;text-align:center;border-radius:50%;background:var(--line);font-size:.8rem;font-weight:600;margin-right:6px}
+.flow li::after{content:"\2192";position:absolute;right:-22px;top:50%;transform:translateY(-50%);width:18px;text-align:center;color:var(--muted)}
+.flow li:nth-child(3n)::after{content:"";}
+.flow li.here{border:2px solid var(--accent);background:var(--accent-bg)}
+.flow li.here::before{background:var(--accent);color:var(--on-accent)}
+.tag{display:inline-block;margin-left:4px;padding:0 8px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-size:.78rem;font-weight:600;white-space:nowrap}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.two .card{margin:0}
+button{font:inherit;background:var(--accent);color:var(--on-accent);border:0;border-radius:8px;padding:8px 16px;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;margin-top:10px;font-size:.95rem}
+th,td{text-align:left;vertical-align:top;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600}
+td.found{background:var(--ok-bg)}
+.legend{font-size:.85rem;color:var(--muted);margin:6px 0 0}
+.legend span{display:inline-block;width:.9em;height:.9em;background:var(--ok-bg);border:1px solid var(--ok);border-radius:3px;vertical-align:-1px;margin-right:4px}
+.verdict{margin:10px 0 0;font-weight:600}
+.err{color:var(--warn);margin:8px 0 0}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:10px 0}
+summary{cursor:pointer;font-weight:600;font-size:1.05rem;padding:12px 14px}
+.answer{padding:0 14px 14px}
+.answer .card{background:var(--bg)}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.stamp{margin:10px 0 0;padding:6px 10px;border-left:3px solid var(--ok);background:var(--ok-bg);border-radius:4px;font-size:.92rem}
+.stamp.saved{border-left-color:var(--warn);background:transparent;border:1px dashed var(--warn)}
+img,table{max-width:100%}
+.back{display:inline-block;margin-top:24px;color:var(--accent)}
+textarea{width:100%;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical}
+textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+@media (max-width:640px){
+  .flow{grid-template-columns:1fr;gap:24px}
+  .flow li::after{content:"\2193";right:auto;left:50%;top:auto;bottom:-24px;transform:translateX(-50%)}
+  .flow li:nth-child(3n)::after{content:"\2193"}
+  .flow li:last-child::after{content:""}
+  .two{grid-template-columns:1fr}
+}
+.flow li:last-child::after{content:""}
+</style>
+</head>
+<body>
+<main>
+<h1>Как нейросеть помогает довести решения встречи до дела</h1>
+<p><span class="status" id="status">Загрузка...</span></p>
+
+<p>На встрече решения записывают на бегу, например: <strong>«Дима обещал до конца следующей недели скинуть цифры по оттоку»</strong>. Чтобы решение не сорвалось, сервису надо понять, кто делает (Дмитрий Белов), что именно (скинуть цифры по оттоку) и к какому числу (конец следующей недели). Это и делает нейросеть, а если чего-то не хватает, сразу задаёт ведущему вопрос.</p>
+
+<h2>Напишите свою строку</h2>
+<div class="card">
+<p>Напишите решение так, как его записали бы на встрече. В выдуманной команде трое: <strong>Пётр Орлов, Дмитрий Белов, Светлана Ли</strong>. Называйте их как угодно: «Петя», «Дима», «Света», «Белов».</p>
+<p class="muted">Не пишите настоящих имён и рабочих данных: строка уходит во внешний сервис нейросети.</p>
+<form id="own">
+<textarea id="own-text" rows="3" maxlength="300" required placeholder="Например: Света до конца месяца глянет договор с подрядчиком и скажет, что поправить"></textarea>
+<p class="row"><button type="submit" id="own-btn">Спросить нейросеть</button> <span class="muted" id="own-count">0 / 300</span></p>
+</form>
+<p class="err" id="own-err"></p>
+<div id="own-box"></div>
+</div>
+
+<h2>Вопросы и ответы</h2>
+
+<details>
+<summary>Какую задачу решает нейросеть?</summary>
+<div class="answer">
+<p>Решения, записанные на бегу («Светлана разберётся с выгрузкой»), чаще всего и срываются: не сказано, к какому сроку и что будет результатом.</p>
+<p>Сервис проверяет каждую строку: кто делает, что именно, к какому сроку и как поймём, что готово. Если чего-то не хватает, он сразу, ещё на встрече, задаёт ведущему вопрос.</p>
+</div>
+</details>
+
+<details>
+<summary>Где этот шаг в сервисе?</summary>
+<div class="answer">
+<ol class="flow">
+<li>Ведущий записывает решение строкой на встрече</li>
+<li class="here">Сервис разбирает строку: кто, что, срок, критерий готовности <span class="tag">вы здесь</span></li>
+<li>Если чего-то не хватает, вопрос ведущему, он дописывает</li>
+<li>Исполнитель получает письмо и подтверждает</li>
+<li>Напоминание перед сроком</li>
+<li>Сверка на следующей встрече: что сделано, что сорвалось</li>
+</ol>
+</div>
+</details>
+
+<details>
+<summary>Почему без нейросети не обойтись?</summary>
+<div class="answer">
+<div class="two">
+<div class="card">
+<h3>Без нейросети: список слов</h3>
+<p>Программа без нейросети знает только то, что ей заранее перечислили: полные имена, «к пятнице», «до 20 ноября», «разберётся». Люди так не говорят. «Дима», «Петя», «глянет», «скинуть», «до конца следующей недели», «в первых числах» — каждое новое слово надо дописывать вручную, и список никогда не закончится.</p>
+</div>
+<div class="card">
+<h3>С нейросетью: понимание смысла</h3>
+<p>Нейросеть читает строку как человек: «Дима» — это Дмитрий, «глянет и отпишется» — непонятно, что будет результатом, из двух имён исполнитель тот, кто делает, а не тот, кому отправляют. Ничего заранее перечислять не нужно.</p>
+</div>
+</div>
+<p class="muted">Простые шаблоны в сервисе остались только как запасной вариант: если нейросеть не ответила, сервис не останавливается, а разбирает строку как сможет.</p>
+</div>
+</details>
+
+<details>
+<summary>Покажите на готовых примерах</summary>
+<div class="answer">
+<p class="muted">Три выдуманные строки со встречи, на которых шаблоны ошибаются. Нажмите кнопку: сервис отправит строку нейросети и покажет рядом, что получилось бы без неё.</p>
+<div id="cards"></div>
+</div>
+</details>
+
+<details>
+<summary>Сколько раз и как быстро отвечала нейросеть?</summary>
+<div class="answer">
+<p class="muted">Каждое обращение сервиса к нейросети: когда, сколько ждали, сколько текста ушло и вернулось (токены). Тексты строк не хранятся.</p>
+<div class="scroll">
+<table>
+<thead><tr><th>Время</th><th>Что делала</th><th>Модель</th><th>Ждали, мс</th><th>Токены (ушло / вернулось)</th><th>Результат</th></tr></thead>
+<tbody id="calls"></tbody>
+</table>
+</div>
+</div>
+</details>
+
+<a class="back" href="/api/docs">Вернуться в Swagger</a>
+</main>
+<script>
+(function () {
+  var API = "/api/v1/demo/llm";
+  var cards = document.getElementById("cards");
+  var els = {};
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  var TASKS = {parse: "разбор строки", gaps: "поиск пробелов", question: "вопрос исполнителю", agenda: "повестка"};
+  var OUTCOMES = {ok: "ответила", timeout: "не ответила вовремя", invalid_output: "невалидный ответ"};
+  var HARD = {
+    1: "«Дима» вместо «Дмитрий», «Света» вместо «Светлана», срок словами «до конца следующей недели». Правила не узнают ни имени, ни срока.",
+    2: "В строке два имени. Кто делает, Пётр или Дмитрий? Правила не знают и просят уточнить исполнителя, хотя он назван.",
+    3: "«Глянет и отпишется» — что будет результатом? Слова «глянет» нет в списке правил, поэтому они не замечают, что сказано размыто."
+  };
+  function clock(iso) {
+    return new Date(iso).toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"});
+  }
+  function dash(v) {
+    return v == null || v === "" ? "-" : String(v);
+  }
+  function dmy(d) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+    return m ? m[3] + "." + m[2] + "." + m[1] : String(d);
+  }
+  function due(v) {
+    var parts = [];
+    if (v.due_date) parts.push(dmy(v.due_date));
+    if (v.due_text) parts.push("(" + v.due_text + ")");
+    return parts.join(" ");
+  }
+  // how: "fresh" — пример спросили только что, "saved" — сохранённый ответ примера, "own" — своя строка
+  function renderResult(box, result, savedAt, how) {
+    box.replaceChildren();
+    var r = result.rules, l = result.llm;
+    var ok = result.live && l.outcome === "ok";
+    var rGaps = r.gaps.map(function (g) { return g.question; }).join(" ");
+    var rVague = r.gaps.some(function (g) { return g.type === "vague_action"; });
+    var rDue = due(r), lDue = due(l);
+    var lWhat = l.what ? {t: l.what} : (ok && r.what ? {t: r.what, note: " (не меняла)"} : {t: ""});
+    // Что сервис спросил бы у ведущего с нейросетью: пробелы после её разбора + её вопрос
+    var lQuestion = "нет ответа";
+    if (ok) {
+      var who = l.assignee || r.assignee, when = lDue || rDue;
+      var vague = l.vague_action == null ? rVague : l.vague_action;
+      var qs = [];
+      if (!who) qs.push("Кто берёт это на себя?");
+      if (!when) qs.push(who ? who.split(" ")[0] + ", к какому числу?" : "К какому числу?");
+      if (vague) qs.push(l.question || "Что будет результатом?");
+      lQuestion = qs.join(" ") || "спрашивать нечего";
+    }
+    var rQuestion = rGaps || "спрашивать нечего";
+    function mine(v, empty) { return ok ? (v || empty) : "нет ответа"; }
+    // [что ищем, без нейросети, с нейросетью, нейросеть исправила или дополнила]
+    var rows = [
+      ["Кто делает", r.assignee || "не нашли", mine(l.assignee, "не нашла"), ok && !!l.assignee && l.assignee !== r.assignee],
+      ["Что сделать", r.what || "не нашли", mine(lWhat.t, "не нашла"), false],
+      ["Срок", rDue || "не нашли", mine(lDue, "не нашла"), ok && !rDue && !!lDue],
+      ["Сказано размыто?", rVague ? "да, размыто" : "нет", ok ? (l.vague_action == null ? "не ответила" : (l.vague_action ? "да, размыто" : "нет")) : "нет ответа", ok && l.vague_action === true && !rVague],
+      ["Что спросить у ведущего", rQuestion, lQuestion, ok && lQuestion !== rQuestion]
+    ];
+    if (ok && l.done_criteria) rows.splice(3, 0, ["Как поймём, что готово", "без нейросети не ищется", l.done_criteria, true]);
+    var wrap = el("div", "scroll");
+    var table = el("table");
+    var hr = el("tr");
+    ["Что ищем", "Без нейросети (шаблоны)", "С нейросетью"].forEach(function (t) { hr.appendChild(el("th", null, t)); });
+    table.appendChild(el("thead")).appendChild(hr);
+    var body = el("tbody");
+    rows.forEach(function (c) {
+      var tr = el("tr");
+      tr.appendChild(el("th", null, c[0]));
+      tr.appendChild(el("td", null, c[1]));
+      var td = el("td", c[3] ? "found" : null, c[2]);
+      if (ok && c[0] === "Что сделать" && lWhat.note) td.appendChild(el("span", "muted", lWhat.note));
+      tr.appendChild(td);
+      body.appendChild(tr);
+    });
+    table.appendChild(body);
+    wrap.appendChild(table);
+    box.appendChild(wrap);
+    if (ok) {
+      var lg = el("p", "legend");
+      lg.appendChild(el("span"));
+      lg.appendChild(document.createTextNode("Подсвечено: где нейросеть исправила или дополнила разбор"));
+      box.appendChild(lg);
+    }
+    var NAMES = {"Кто делает": "исполнитель", "Срок": "срок", "Как поймём, что готово": "критерий готовности", "Что спросить у ведущего": "вопрос ведущему"};
+    var found = [];
+    if (ok) {
+      rows.forEach(function (c) {
+        if (!c[3]) return;
+        if (c[0] === "Сказано размыто?") found.push("заметила, что сказано размыто");
+        else if (c[0] === "Что спросить у ведущего" && c[2] === "спрашивать нечего") found.push("ведущего не нужно отвлекать лишним вопросом");
+        else found.push(NAMES[c[0]] + " — " + c[2]);
+      });
+    }
+    var summary;
+    if (!result.live) summary = "Нейросеть не подключена, сервис работает на шаблонах.";
+    else if (l.outcome === "timeout") summary = "Нейросеть не ответила вовремя, сервис работает на шаблонах. Попробуйте ещё раз через несколько секунд.";
+    else if (!ok) summary = "Нейросеть сейчас недоступна (вероятно, кончился дневной лимит бесплатного ключа), сервис работает на шаблонах.";
+    else if (found.length) summary = "Без нейросети сервис ошибся бы. Что исправила нейросеть: " + found.join("; ");
+    else summary = "В этой строке всё сказано прямо, нейросеть ничего не исправляла";
+    box.appendChild(el("p", ok ? "verdict" : "verdict err", "Итог: " + summary));
+    var when = clock(savedAt);
+    var stamp = el("p", how === "saved" ? "stamp saved" : "stamp");
+    if (how === "saved") {
+      stamp.appendChild(el("strong", null, "Сохранённый ответ, не свежий. "));
+      stamp.appendChild(document.createTextNode("Ответ получен в " + when + ", сохранён. Нажмите «Спросить ещё раз», чтобы получить новый."));
+    } else if (how === "own") {
+      stamp.appendChild(el("strong", null, "Свежий ответ. "));
+      stamp.appendChild(document.createTextNode("Ответ получен в " + when + ". Ваши строки не сохраняются."));
+    } else {
+      stamp.appendChild(el("strong", null, "Свежий ответ. "));
+      stamp.appendChild(document.createTextNode("Ответ получен в " + when + ", сохранён: его увидят все, кто откроет страницу."));
+    }
+    box.appendChild(stamp);
+    if (ok) box.appendChild(el("p", "muted", "Ответила модель " + result.model + " за " + result.elapsed_ms + " мс. Нейросеть пишет ответ сама, поэтому от нажатия к нажатию формулировки немного меняются."));
+  }
+  function buildCard(ex) {
+    var card = el("section", "card");
+    card.appendChild(el("p", "label", "Строка со встречи:"));
+    card.appendChild(el("p", "line", ex.text));
+    var hard = el("p", "hard");
+    hard.appendChild(el("strong", null, "Что здесь сложного: "));
+    hard.appendChild(document.createTextNode(HARD[ex.id] || ""));
+    card.appendChild(hard);
+    var btn = el("button", null, "Спросить нейросеть");
+    var err = el("p", "err");
+    var box = el("div");
+    card.append(btn, err, box);
+    btn.addEventListener("click", function () { ask(ex.id); });
+    cards.appendChild(card);
+    els[ex.id] = {btn: btn, err: err, box: box};
+  }
+  function ask(id) {
+    var e = els[id];
+    e.btn.disabled = true;
+    e.err.textContent = "";
+    fetch(API + "/examples/" + id + "/run", {method: "POST"})
+      .then(function (resp) {
+        return resp.json().catch(function () { return {}; }).then(function (data) {
+          if (!resp.ok) throw new Error(data.detail || ("Ошибка " + resp.status));
+          return data;
+        });
+      })
+      .then(function (data) {
+        renderResult(e.box, data, new Date().toISOString(), "fresh");
+        e.btn.textContent = "Спросить ещё раз";
+        return load(true);
+      })
+      .catch(function (x) { e.err.textContent = x.message; })
+      .then(function () { e.btn.disabled = false; });
+  }
+  function post(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: body ? {"Content-Type": "application/json"} : {},
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (resp) {
+      return resp.json().catch(function () { return {}; }).then(function (data) {
+        if (resp.status === 429) throw new Error("Нейросеть занята, повторите через несколько секунд");
+        if (resp.status === 422) throw new Error("Напишите строку покороче, до 300 знаков");
+        if (!resp.ok) throw new Error(data.detail || ("Ошибка " + resp.status));
+        return data;
+      });
+    });
+  }
+  var own = document.getElementById("own");
+  var ownText = document.getElementById("own-text");
+  var ownBtn = document.getElementById("own-btn");
+  var ownErr = document.getElementById("own-err");
+  var ownBox = document.getElementById("own-box");
+  ownText.addEventListener("input", function () {
+    document.getElementById("own-count").textContent = ownText.value.length + " / 300";
+  });
+  own.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var text = ownText.value.trim();
+    if (!text) return;
+    ownBtn.disabled = true;
+    ownErr.textContent = "";
+    post(API + "/try", {text: text})
+      .then(function (data) {
+        renderResult(ownBox, data, new Date().toISOString(), "own");
+        return load(true);
+      })
+      .catch(function (x) { ownErr.textContent = x.message; })
+      .then(function () { ownBtn.disabled = false; });
+  });
+  function renderCalls(calls) {
+    var tbody = document.getElementById("calls");
+    tbody.replaceChildren();
+    calls.forEach(function (c) {
+      var tokens = c.input_tokens == null && c.output_tokens == null ? "-" : dash(c.input_tokens) + " / " + dash(c.output_tokens);
+      var tr = el("tr");
+      [clock(c.created_at), TASKS[c.task] || c.task, c.model, dash(c.latency_ms), tokens, OUTCOMES[c.outcome] || c.outcome].forEach(function (v) {
+        tr.appendChild(el("td", null, v));
+      });
+      tbody.appendChild(tr);
+    });
+  }
+  function load(keepResults) {
+    return fetch(API + "/examples").then(function (resp) {
+      if (!resp.ok) throw new Error("Ошибка " + resp.status);
+      return resp.json();
+    }).then(function (data) {
+      document.getElementById("status").textContent = data.live
+        ? "Нейросеть подключена: " + data.model + " (" + data.provider + ")"
+        : "Нейросеть не подключена: работает заглушка";
+      data.examples.forEach(function (ex) {
+        if (!els[ex.id]) buildCard(ex);
+        if (ex.result && !(keepResults && els[ex.id].box.firstChild)) {
+          renderResult(els[ex.id].box, ex.result, ex.saved_at, "saved");
+          els[ex.id].btn.textContent = "Спросить ещё раз";
+        }
+      });
+      renderCalls(data.calls);
+    });
+  }
+  load(false).catch(function (x) {
+    document.getElementById("status").textContent = x.message;
+  });
+})();
+</script>
+</body>
+</html>

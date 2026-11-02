@@ -22,6 +22,15 @@ class LlmCheckRequest(BaseModel):
     )
 
 
+class LlmTryRequest(BaseModel):
+    text: str = Field(
+        min_length=1,
+        max_length=300,
+        pattern=r"\S",
+        examples=["Петя до 1 декабря закроет вопрос с бюджетом, Света поможет с цифрами"],
+    )
+
+
 class GapView(BaseModel):
     type: GapType
     question: str
@@ -66,6 +75,32 @@ class LlmCallRead(BaseModel):
     output_tokens: int | None
     outcome: LlmOutcome
     meeting_id: uuid.UUID | None
+
+
+class PublicCallRead(BaseModel):
+    created_at: datetime
+    task: LlmTask
+    provider: str
+    model: str
+    latency_ms: int | None
+    input_tokens: int | None
+    output_tokens: int | None
+    outcome: LlmOutcome
+
+
+class ExampleRead(BaseModel):
+    id: int
+    text: str
+    result: LlmCheckResult | None
+    saved_at: datetime | None
+
+
+class Examples(BaseModel):
+    live: bool
+    provider: str
+    model: str
+    examples: list[ExampleRead]
+    calls: list[PublicCallRead]
 
 
 class LetterLink(BaseModel):

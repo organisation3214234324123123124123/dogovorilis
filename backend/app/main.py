@@ -45,9 +45,14 @@ DESCRIPTION = """
 Изменение пункта идёт с заголовком `If-Match: <version>`.
 """
 
+DEMO_BUTTON = """### [▶ Посмотреть, как отвечает нейросеть](/api/v1/demo/llm/page)
+Без входа, настоящие ответы модели.
+"""
+
 DEMO_TAG = {
     "name": "demo",
-    "description": "Для показа: живая проверка нейросети, письма, перемотка планировщика, "
+    "description": "Для показа: живая проверка нейросети, страница с её ответами "
+    "(`/api/v1/demo/llm/page`, без входа), письма, перемотка планировщика, "
     "события живой панели. Есть только на демо-стенде (DEV_MODE=1 и DEMO_DATA=1)",
 }
 
@@ -86,7 +91,7 @@ def create_app() -> FastAPI:
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
         redoc_url=None,
-        description=DESCRIPTION,
+        description=DEMO_BUTTON + DESCRIPTION if demo else DESCRIPTION,
         openapi_tags=[*TAGS[:1], DEMO_TAG, *TAGS[1:]] if demo else TAGS,
         swagger_ui_parameters={
             "persistAuthorization": True,
