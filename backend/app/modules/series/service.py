@@ -72,6 +72,10 @@ def get_owned_series(db: Session, user: User, series_id: uuid.UUID) -> Series:
     return series
 
 
+def first_active_series(db: Session, user: User) -> Series | None:
+    return repository.first_active_series(db, user.id)
+
+
 def get_owned_meeting(db: Session, user: User, meeting_id: uuid.UUID) -> tuple[Meeting, Series]:
     found = repository.get_meeting(db, user.id, meeting_id)
     if found is None:

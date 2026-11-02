@@ -30,6 +30,13 @@ def list_series(db: Session, owner_id: uuid.UUID, status: SeriesStatus) -> list[
     return list(db.scalars(stmt))
 
 
+def first_active_series(db: Session, owner_id: uuid.UUID) -> Series | None:
+    stmt = select(Series).where(
+        Series.owner_user_id == owner_id, Series.status == SeriesStatus.ACTIVE
+    )
+    return db.scalar(stmt.order_by(Series.created_at).limit(1))
+
+
 def get_series(db: Session, owner_id: uuid.UUID, series_id: uuid.UUID) -> Series | None:
     return db.scalar(select(Series).where(Series.id == series_id, Series.owner_user_id == owner_id))
 

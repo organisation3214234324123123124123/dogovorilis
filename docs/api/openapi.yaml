@@ -2319,25 +2319,22 @@ components:
           tokenUrl: /api/v1/auth/token
       type: oauth2
 info:
-  description: '
-
-    **Как попробовать** (локально `docker compose up`: демо-данные и вход через Authorize
-
-    включает `compose.override.yaml`, `DEV_MODE=1`):
-
-    `POST /api/v1/auth/login` или кнопка **Authorize** (username `host@example.com`,
-
-    password `demo1234`), затем `GET /api/v1/series`.
-
-
-    Ошибки приходят как `application/problem+json` с полем `code`.
-
-    Изменение пункта идёт с заголовком `If-Match: <version>`.
-
-    Живая панель работает по WebSocket `/api/v1/ws/meetings/{id}`, сообщения описаны
-    схемой `LiveEvent`.
-
-    '
+  description: "\n**Договорились** помогает ведущему встречи довести решения до срока:\
+    \ что, кто, к какому числу.\n\n**Вход:** `POST /api/v1/auth/login` -> Try it out\
+    \ -> Execute (тело уже заполнено:\n`host@example.com / demo1234`). После этого\
+    \ cookie работает для всех ручек.\nЛокально демо-данные и вход через Authorize\
+    \ включает `compose.override.yaml` (`DEV_MODE=1`).\n\n**Сценарий по шагам:**\n\
+    1. Серия и участники (`series`).\n2. Встреча и решения строкой (`meetings`, `items`).\n\
+    3. Закрытие встречи и пробелы: нет срока, нет исполнителя.\n4. «Согласовано на\
+    \ встрече».\n5. «Разослать»: письма уходят исполнителям.\n6. Письма и страница\
+    \ исполнителя по ссылке (`public-link`).\n7. Напоминание (перемотка времени) и\
+    \ статусы.\n8. Сверка на следующей встрече.\n\n**Как увидеть интеграции:**\n-\
+    \ нейросеть: `POST /demo/llm/check` и поле `llm` в `GET /health`;\n- почта: `GET\
+    \ /demo/mailbox`;\n- планировщик: `POST /demo/scheduler/fast-forward` и `worker_last_run_at`\
+    \ в `/health`;\n- живая панель: `GET /demo/meetings/{id}/live-events` (в бою это\
+    \ WebSocket\n  `/api/v1/ws/meetings/{id}`, схема `LiveEvent`).\n\nРаздел `demo`\
+    \ есть только на демо-стенде.\nОшибки приходят как `application/problem+json`\
+    \ с полем `code`.\nИзменение пункта идёт с заголовком `If-Match: <version>`.\n"
   title: Договорились API
   version: dev
 openapi: 3.1.0
