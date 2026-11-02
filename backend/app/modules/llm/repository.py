@@ -78,7 +78,9 @@ def recent_calls(db: Session, limit: int, owner_id: uuid.UUID) -> list[LlmCall]:
 
 
 def latest_calls(db: Session, limit: int) -> list[LlmCall]:
-    return list(db.scalars(select(LlmCall).order_by(LlmCall.created_at.desc()).limit(limit)))
+    """Вызовы без встречи (проверки и демо): чужие встречи на публичной странице не видны."""
+    query = select(LlmCall).where(LlmCall.meeting_id.is_(None))
+    return list(db.scalars(query.order_by(LlmCall.created_at.desc()).limit(limit)))
 
 
 def standalone_window(db: Session, window_sec: int) -> tuple[int, datetime | None, datetime]:

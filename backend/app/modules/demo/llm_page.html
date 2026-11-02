@@ -31,10 +31,10 @@ p{margin:8px 0}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .two .card{margin:0}
 button{font:inherit;background:var(--accent);color:var(--on-accent);border:0;border-radius:8px;padding:8px 16px;cursor:pointer}
-button:disabled{opacity:.6;cursor:wait}
+button:disabled{opacity:.6;cursor:not-allowed}
 .scroll{overflow-x:auto}
 table{border-collapse:collapse;width:100%;margin-top:10px;font-size:.95rem}
-th,td{text-align:left;vertical-align:top;padding:6px 8px;border-bottom:1px solid var(--line)}
+th,td{text-align:left;vertical-align:top;padding:6px 8px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
 th{color:var(--muted);font-weight:600}
 td.found{background:var(--ok-bg)}
 .legend{font-size:.85rem;color:var(--muted);margin:6px 0 0}
@@ -72,7 +72,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 <h2>Напишите свою строку</h2>
 <div class="card">
 <p>Напишите решение так, как его записали бы на встрече. В выдуманной команде трое: <strong>Пётр Орлов, Дмитрий Белов, Светлана Ли</strong>. Называйте их как угодно: «Петя», «Дима», «Света», «Белов».</p>
-<p class="muted">Не пишите настоящих имён и рабочих данных: строка уходит во внешний сервис нейросети.</p>
+<p class="muted">Не пишите настоящих имён и рабочих данных: строка уходит во внешний сервис нейросети (Groq, США).</p>
 <form id="own">
 <textarea id="own-text" rows="3" maxlength="300" required placeholder="Например: Света до конца месяца глянет договор с подрядчиком и скажет, что поправить"></textarea>
 <p class="row"><button type="submit" id="own-btn">Спросить нейросеть</button> <span class="muted" id="own-count">0 / 300</span></p>
@@ -194,10 +194,19 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
     if (ok) {
       var who = l.assignee || r.assignee, when = lDue || rDue;
       var vague = l.vague_action == null ? rVague : l.vague_action;
+      // вопрос о тёзках собирает сервис, нейросеть его не вытесняет
+      var namesakeQ = r.gaps.filter(function (g) {
+        return g.type === "no_assignee" && g.question.indexOf("Какой ") === 0;
+      }).map(function (g) { return g.question; })[0];
+      var ownQ = l.question && (vague || !namesakeQ) ? l.question : null;
       var qs = [];
-      if (!who) qs.push("Кто берёт это на себя?");
+      if (!who) {
+        if (namesakeQ) qs.push(namesakeQ);
+        else if (!ownQ || !/кто/i.test(ownQ)) qs.push("Кто берёт это на себя?");
+      }
       if (!when) qs.push(who ? who.split(" ")[0] + ", к какому числу?" : "К какому числу?");
-      if (vague) qs.push(l.question || "Что будет результатом?");
+      if (ownQ) qs.push(ownQ);
+      else if (vague) qs.push("Что будет результатом?");
       lQuestion = qs.join(" ") || "спрашивать нечего";
     }
     var rQuestion = rGaps || "спрашивать нечего";
@@ -253,8 +262,11 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
     else summary = "В этой строке всё сказано прямо, нейросеть ничего не исправляла";
     box.appendChild(el("p", ok ? "verdict" : "verdict err", "Итог: " + summary));
     var when = clock(savedAt);
-    var stamp = el("p", how === "saved" ? "stamp saved" : "stamp");
-    if (how === "saved") {
+    var stamp = el("p", how === "saved" || !ok ? "stamp saved" : "stamp");
+    if (!ok) {
+      stamp.appendChild(el("strong", null, "Нейросеть не ответила. "));
+      stamp.appendChild(document.createTextNode("Попытка в " + when + "; этот разбор не сохранён."));
+    } else if (how === "saved") {
       stamp.appendChild(el("strong", null, "Сохранённый ответ, не свежий. "));
       stamp.appendChild(document.createTextNode("Ответ получен в " + when + ", сохранён. Нажмите «Спросить ещё раз», чтобы получить новый."));
     } else if (how === "own") {

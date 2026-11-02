@@ -175,3 +175,27 @@ def test_try_rate_limited(anon: TestClient, world: World, monkeypatch: pytest.Mo
     use_llm(monkeypatch, FakeLLM(reply()))
     add_checks(world, 20, 5)
     assert anon.post(f"{API}/try", json={"text": "Петя подготовит отчёт"}).status_code == 429
+
+
+def test_try_has_daily_cap(anon: TestClient, world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    use_llm(monkeypatch, FakeLLM(reply()))
+    add_checks(world, 150, 3 * 3600)
+    resp = anon.post(f"{API}/try", json={"text": "Петя подготовит отчёт"})
+    assert resp.status_code == 429
+    assert int(resp.headers["Retry-After"]) >= 1
+
+
+def test_public_calls_skip_meeting_calls(anon: TestClient, world: World) -> None:
+    from app.modules.llm.models import LlmOutcome, LlmTask
+
+    world.db.add(
+        LlmCall(
+            meeting_id=world.meeting.id,
+            task=LlmTask.PARSE,
+            provider="fake",
+            model="m",
+            outcome=LlmOutcome.OK,
+        )
+    )
+    world.db.flush()
+    assert anon.get(f"{API}/examples").json()["calls"] == []

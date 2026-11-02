@@ -42,6 +42,8 @@ from app.modules.series.models import Person
 
 CHECK_LIMIT = 20
 CHECK_WINDOW_SEC = 60
+DAY_LIMIT = 150
+DAY_SEC = 24 * 3600
 MAILBOX_SCAN = 50
 EXAMPLES_CALLS = 20
 EXAMPLES_TZ = ZoneInfo("Europe/Moscow")
@@ -62,13 +64,17 @@ SLOW = {
 
 
 def _check_rate(db: Session) -> None:
-    """Квота Groq общая: одна проверка за раз и не больше 20 в минуту на весь стенд."""
+    """Квота Groq общая: одна проверка за раз, не больше 20 в минуту и 150 в сутки на стенд."""
     if not llm_service.try_check_lock(db):
         raise RateLimited("Проверка уже идёт, повторите через секунду", retry_after=1)
     count, oldest, now = llm_service.standalone_window(db, CHECK_WINDOW_SEC)
     if count >= CHECK_LIMIT and oldest is not None:
         wait = CHECK_WINDOW_SEC - (now - oldest).total_seconds()
         raise RateLimited("Слишком много проверок за минуту", retry_after=math.ceil(wait))
+    count, oldest, now = llm_service.standalone_window(db, DAY_SEC)
+    if count >= DAY_LIMIT and oldest is not None:
+        wait = DAY_SEC - (now - oldest).total_seconds()
+        raise RateLimited("Дневной лимит проверок исчерпан", retry_after=max(1, math.ceil(wait)))
 
 
 def llm_check(db: Session, user: User, body: LlmCheckRequest) -> LlmCheckResult:
