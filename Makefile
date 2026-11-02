@@ -18,8 +18,9 @@ up:
 down:
 	$(COMPOSE) down
 
+# make logs s=worker - логи одного сервиса, без s - всех
 logs:
-	$(COMPOSE) logs -f --tail=100
+	$(COMPOSE) logs -f --tail=100 $(s)
 
 .PHONY: ps restart
 ps:
