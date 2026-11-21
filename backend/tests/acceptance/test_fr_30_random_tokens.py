@@ -27,7 +27,7 @@ from tests.factories import add_member
 pytestmark = pytest.mark.fr("FR-30")
 
 REPEAT_AT = datetime(2030, 1, 16, 12, 0, tzinfo=UTC)
-REMINDER_AT = datetime(2030, 1, 24, 6, 0, tzinfo=UTC)
+REMINDER_AT = datetime(2030, 1, 24, 7, 0, tzinfo=UTC)
 
 
 def tokens_to(box: Mailbox, person) -> list[str]:

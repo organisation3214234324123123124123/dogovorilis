@@ -28,7 +28,7 @@ STUCK_AFTER = timedelta(minutes=10)
 RETRY_DELAYS = (timedelta(minutes=5), timedelta(minutes=15), timedelta(minutes=60))
 WEEK = timedelta(days=7)
 WEEKLY_LIMIT = 3
-POSTPONED_HOUR = 9
+POSTPONED_HOUR = 10
 SMTP_TIMEOUT_SEC = 10
 SMTPS_PORT = 465
 FROM_NAME = "Договорились"

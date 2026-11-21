@@ -263,7 +263,7 @@ def test_item_created_after_send_plans_due_tomorrow(host, sc: Scenario) -> None:
     (reminder,) = mails(sc.world.db, "DUE_TOMORROW", item_id=late.id)
     assert reminder.recipient_person_id == sc.oleg.id
     assert reminder.status == NotificationStatus.QUEUED
-    assert reminder.scheduled_for == datetime(2030, 1, 17, 6, 0, tzinfo=UTC)
+    assert reminder.scheduled_for == datetime(2030, 1, 17, 7, 0, tzinfo=UTC)
 
 
 @pytest.mark.fr("FR-28")

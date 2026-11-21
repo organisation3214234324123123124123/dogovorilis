@@ -87,7 +87,7 @@ def test_due_edit_replans_due_tomorrow(authed: TestClient, world: World) -> None
         meeting_id=world.meeting.id,
         item_id=item.id,
         dedupe_key=f"{item.id}:DUE_TOMORROW:2026-10-20:1",
-        scheduled_for=datetime(2026, 10, 19, 6, 0, tzinfo=UTC),
+        scheduled_for=datetime(2026, 10, 19, 7, 0, tzinfo=UTC),
     )
     world.db.add(old)
     world.db.flush()
@@ -99,7 +99,7 @@ def test_due_edit_replans_due_tomorrow(authed: TestClient, world: World) -> None
         for n in notifications(world.db, NotificationType.DUE_TOMORROW, item.id)
         if n.status == NotificationStatus.QUEUED
     ]
-    assert [n.scheduled_for for n in fresh] == [datetime(2026, 10, 21, 6, 0, tzinfo=UTC)]
+    assert [n.scheduled_for for n in fresh] == [datetime(2026, 10, 21, 7, 0, tzinfo=UTC)]
 
 
 def test_due_edit_recalculates_link_expiry(authed: TestClient, world: World) -> None:

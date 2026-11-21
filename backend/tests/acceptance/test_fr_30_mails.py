@@ -234,10 +234,10 @@ def test_only_one_repeat_is_ever_sent(host, sc: Scenario) -> None:
 
 
 @pytest.mark.fr("FR-40")
-def test_due_tomorrow_is_planned_for_previous_working_day_0900_local(host, sc: Scenario) -> None:
+def test_due_tomorrow_is_planned_for_previous_working_day_1000_local(host, sc: Scenario) -> None:
     send(host, sc.world)
     (reminder,) = mails(sc.world.db, "DUE_TOMORROW", item_id=sc.pending.id)
-    assert reminder.scheduled_for == datetime(2030, 1, 24, 6, 0, tzinfo=UTC)
+    assert reminder.scheduled_for == datetime(2030, 1, 24, 7, 0, tzinfo=UTC)
     assert reminder.recipient_person_id == sc.ivan.id
     assert re.fullmatch(rf"{sc.pending.id}:DUE_TOMORROW:2030-01-25:\d+", reminder.dedupe_key)
 
@@ -246,7 +246,7 @@ def test_due_tomorrow_is_planned_for_previous_working_day_0900_local(host, sc: S
 def test_due_tomorrow_before_monday_goes_out_on_friday(host, sc: Scenario) -> None:
     send(host, sc.world)
     (reminder,) = mails(sc.world.db, "DUE_TOMORROW", item_id=sc.agreed.id)
-    assert reminder.scheduled_for == datetime(2030, 1, 18, 6, 0, tzinfo=UTC)
+    assert reminder.scheduled_for == datetime(2030, 1, 18, 7, 0, tzinfo=UTC)
 
 
 @pytest.mark.fr("FR-40")
@@ -287,7 +287,7 @@ def test_due_tomorrow_is_not_sent_for_closed_item(host, sc: Scenario) -> None:
     sc.pending.status = ItemStatus.DONE
     sc.pending.done_at = TUESDAY
     sc.world.db.flush()
-    send_due(sc.world.db, datetime(2030, 1, 24, 6, 0, tzinfo=UTC))
+    send_due(sc.world.db, datetime(2030, 1, 24, 7, 0, tzinfo=UTC))
     (reminder,) = mails(sc.world.db, "DUE_TOMORROW", item_id=sc.pending.id)
     assert reminder.status == NotificationStatus.CANCELLED
 
@@ -300,8 +300,8 @@ def test_sent_due_tomorrow_writes_reminder_sent_event(host, sc: Scenario) -> Non
     # письма рассылки уходят сразу; иначе накопленные письма недели упёрлись бы в лимит BR-11
     send_due(sc.world.db, TUESDAY + timedelta(minutes=5))
     # отложенные по лимиту письма уходят в свой срок (BR-11), потом приходит черёд напоминания
-    send_due(sc.world.db, datetime(2030, 1, 16, 6, 0, tzinfo=UTC))
-    send_due(sc.world.db, datetime(2030, 1, 24, 6, 0, tzinfo=UTC))
+    send_due(sc.world.db, datetime(2030, 1, 16, 7, 0, tzinfo=UTC))
+    send_due(sc.world.db, datetime(2030, 1, 24, 7, 0, tzinfo=UTC))
     (reminder,) = mails(sc.world.db, "DUE_TOMORROW", item_id=sc.pending.id)
     assert reminder.status == NotificationStatus.SENT
     assert len(events(sc.world.db, "reminder_sent", item_id=sc.pending.id)) == 1
@@ -591,9 +591,9 @@ def test_weekly_limit_counts_letters_of_the_current_run_and_postpones_into_one_d
     held = [m for m in rows if m.status == NotificationStatus.QUEUED]
     assert len(held) == 2
     for mail in held:
-        # 09:00 МСК следующего рабочего дня (среда 2030-01-16)
-        assert mail.scheduled_for == datetime(2030, 1, 16, 6, 0, tzinfo=UTC)
-    sender.send_due(sc.world.db, datetime(2030, 1, 16, 6, 0, tzinfo=UTC))
+        # 10:00 МСК следующего рабочего дня (среда 2030-01-16)
+        assert mail.scheduled_for == datetime(2030, 1, 16, 7, 0, tzinfo=UTC)
+    sender.send_due(sc.world.db, datetime(2030, 1, 16, 7, 0, tzinfo=UTC))
     assert len(sent) == 4  # отложенные ушли одним письмом (digest)
     assert len(sent[-1][1]) == 2
     for mail in held:

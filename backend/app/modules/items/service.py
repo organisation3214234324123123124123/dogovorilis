@@ -71,6 +71,8 @@ OVERLOAD_WINDOW_DAYS = 7
 CAPTURE_LIMIT = 60
 CAPTURE_WINDOW_SEC = 60
 EDITABLE_FIELDS = ("what", "assignee_person_id", "due_date", "due_text", "done_criteria")
+# смена любого из этих полей до рассылки снимает «Согласовано на встрече»
+RESET_FIELDS = ("what", "assignee_person_id", "due_date", "done_criteria")
 PARSED_FIELDS = ("what", "assignee_person_id", "due_date", "due_text")
 
 # Точка расширения для LLM (FR-12): вызывается после разбора правилами, до пересчёта пробелов.
@@ -527,7 +529,7 @@ def update_item(
     for field in provided:
         setattr(item, field, getattr(body, field))
     item.manual_fields = list(dict.fromkeys([*item.manual_fields, *provided]))
-    if assignee_changes:
+    if not sent and any(f in RESET_FIELDS for f in changed):
         item.accepted_in_meeting = False
     due_changed = "due_date" in changed
     if sent and due_changed:
@@ -536,7 +538,7 @@ def update_item(
     db.flush()
 
     gaps_service.recalc(db, item, today, _assignee_name(db, item))
-    if item.accepted_in_meeting and not _accept_allowed(db, item):
+    if not sent and item.accepted_in_meeting and not _accept_allowed(db, item):
         item.accepted_in_meeting = False
     _journal(db, user, item, ItemAction.UPDATED, fields=changed)
     if sent:
@@ -898,7 +900,9 @@ def send_draft(db: Session, user: User, item: Item, now: datetime) -> None:
     """Draft становится accepted, если пункт согласован на встрече; иначе pending, даже без
     исполнителя.
     """
-    agreed = item.accepted_in_meeting and item.assignee_person_id is not None
+    agreed = item.accepted_in_meeting and _accept_allowed(db, item)
+    if item.accepted_in_meeting and not agreed:
+        item.accepted_in_meeting = False
     item.status = ItemStatus.ACCEPTED if agreed else ItemStatus.PENDING
     item.sent_at = now
     if agreed:

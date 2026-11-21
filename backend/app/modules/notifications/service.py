@@ -13,7 +13,7 @@ from app.modules.notifications import content, repository
 from app.modules.notifications.models import NotificationStatus, NotificationType
 from app.modules.series.models import Person, Series
 
-REMINDER_HOUR = 9
+REMINDER_HOUR = 10
 CHANGED_FIELDS = ("what", "due_date", "done_criteria")
 
 
@@ -88,7 +88,7 @@ def plan_due_reminder(
     now: datetime,
     payload: dict[str, Any] | None = None,
 ) -> bool:
-    """09:00 рабочего дня перед сроком (BR-8); None, если это время уже прошло."""
+    """10:00 рабочего дня перед сроком (BR-8); None, если это время уже прошло."""
     if due_date is None:
         return False
     zone = ZoneInfo(tz)

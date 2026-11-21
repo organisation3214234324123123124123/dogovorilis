@@ -126,7 +126,7 @@ def test_assignee_change_resets_flag(authed: TestClient, world: World, ready) ->
     assert resp.json()["accepted_in_meeting"] is False
 
 
-def test_date_change_before_send_keeps_flag_and_reschedule_count(
+def test_date_change_before_send_resets_flag_and_keeps_reschedule_count(
     authed: TestClient, world: World, ready
 ) -> None:
     _, item = ready
@@ -138,10 +138,79 @@ def test_date_change_before_send_keeps_flag_and_reschedule_count(
     )
     body = resp.json()
     assert (body["accepted_in_meeting"], body["due_date"], body["reschedule_count"]) == (
-        True,
+        False,
         "2026-10-27",
         0,
     )
+
+
+def patch(authed: TestClient, item, accepted_resp, payload: dict):
+    return authed.patch(
+        f"{API}/items/{item.id}",
+        json=payload,
+        headers={"If-Match": str(accepted_resp.json()["version"])},
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"what": "Другое действие"},
+        {"due_date": "2026-10-27"},
+        {"done_criteria": "Отчёт в общей папке"},
+    ],
+    ids=["what", "due_date", "done_criteria"],
+)
+def test_change_of_reset_field_before_send_clears_flag(
+    authed: TestClient, world: World, ready, payload
+) -> None:
+    _, item = ready
+    first = accept(authed, item)
+    resp = patch(authed, item, first, payload)
+    assert resp.status_code == 200
+    assert resp.json()["accepted_in_meeting"] is False
+
+
+def test_same_values_and_due_text_keep_flag(authed: TestClient, world: World, ready) -> None:
+    _, item = ready
+    first = accept(authed, item)
+    same = patch(authed, item, first, {"what": "Подготовить отчёт", "due_date": "2026-10-20"})
+    assert same.json()["accepted_in_meeting"] is True
+    text = patch(authed, item, same, {"due_text": "до вторника"})
+    assert text.status_code == 200
+    assert text.json()["accepted_in_meeting"] is True
+
+
+def test_edit_after_send_keeps_accepted_and_flag(authed: TestClient, world: World, ready) -> None:
+    _, item = ready
+    accept(authed, item)
+    assert authed.post(f"{API}/meetings/{world.meeting.id}/closure").status_code == 200
+    sent = authed.post(f"{API}/meetings/{world.meeting.id}/send", json={"confirm_open_gaps": True})
+    assert sent.status_code == 200
+    stored = reload(world, item)
+    resp = authed.patch(
+        f"{API}/items/{item.id}",
+        json={"due_date": "2026-10-27", "what": "Новое действие"},
+        headers={"If-Match": str(stored.version)},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert (body["status"], body["accepted_in_meeting"]) == ("accepted", True)
+
+
+def test_absent_assignee_at_send_goes_out_as_pending(
+    authed: TestClient, world: World, ready
+) -> None:
+    ctx, item = ready
+    accept(authed, item)
+    row = world.db.get(MeetingParticipant, (world.meeting.id, ctx.ivan.id))
+    row.present = False
+    world.db.flush()
+    assert authed.post(f"{API}/meetings/{world.meeting.id}/closure").status_code == 200
+    sent = authed.post(f"{API}/meetings/{world.meeting.id}/send", json={"confirm_open_gaps": True})
+    assert sent.status_code == 200
+    stored = reload(world, item)
+    assert (stored.status, stored.accepted_in_meeting) == (ItemStatus.PENDING, False)
 
 
 def test_after_send_item_is_accepted_with_link(authed: TestClient, world: World, ready) -> None:
