@@ -16,7 +16,7 @@ ENV APP_VERSION=${APP_VERSION} \
 RUN useradd --system --create-home --uid 10001 app
 WORKDIR /app
 COPY --from=builder --chown=app:app /app /app
-RUN chmod +x /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh /app/migrate.sh
 USER app
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

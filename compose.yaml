@@ -21,7 +21,14 @@ x-backend: &backend
       required: false
   environment: &backend-env
     APP_VERSION: ${APP_VERSION:-dev}
-    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leaderhelp}:${POSTGRES_PASSWORD:-leaderhelp}@db:5432/${POSTGRES_DB:-leaderhelp}
+    # Приложение ходит в базу под ролью leaderhelp_app: журнал item_events только читает и дополняет.
+    DATABASE_URL: postgresql+psycopg://leaderhelp_app:${APP_DB_PASSWORD:-leaderhelp_app}@db:5432/${POSTGRES_DB:-leaderhelp}
+    # Четыре секрета обнуляются: значения из .env (env_file) не должны попасть в backend, worker
+    # и beat. Каждый сервис, которому они нужны, задаёт их у себя (migrate, worker-maintenance).
+    MIGRATION_DATABASE_URL: ""
+    CLEANUP_DATABASE_URL: ""
+    APP_DB_PASSWORD: ""
+    CLEANUP_DB_PASSWORD: ""
     REDIS_URL: redis://redis:6379/0
     # DEV_MODE и DEMO_DATA по умолчанию пустые, локально их включает compose.override.yaml.
     DEMO_DATA: ${DEMO_DATA:-}
@@ -29,6 +36,9 @@ x-backend: &backend
   depends_on:
     db:
       condition: service_healthy
+    # Миграции идут отдельным одноразовым сервисом и должны завершиться до старта.
+    migrate:
+      condition: service_completed_successfully
     # Ждём, пока Redis отвечает на ping, а не просто запущен.
     redis:
       condition: service_healthy
@@ -60,6 +70,22 @@ services:
       timeout: 3s
       retries: 20
 
+  # Одноразовый сервис: миграции (и демо-данные при DEMO_DATA=1) под владельцем таблиц.
+  # Только он знает MIGRATION_DATABASE_URL и пароли ролей БД; после завершения контейнер не живёт.
+  migrate:
+    <<: *backend
+    restart: "no"
+    environment:
+      <<: *backend-env
+      MIGRATION_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leaderhelp}:${POSTGRES_PASSWORD:-leaderhelp}@db:5432/${POSTGRES_DB:-leaderhelp}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-leaderhelp_app}
+      CLEANUP_DB_PASSWORD: ${CLEANUP_DB_PASSWORD:-leaderhelp_cleanup}
+    # Свой depends_on заменяет общий (иначе сервис ждал бы сам себя).
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["/app/migrate.sh"]
+
   backend:
     <<: *backend
     ports:
@@ -72,22 +98,31 @@ services:
 
   worker:
     <<: *backend
-    environment:
-      <<: *backend-env
-      RUN_MIGRATIONS: "0"
     # Свой depends_on заменяет общий, поэтому Redis указан здесь явно.
     depends_on:
       backend:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: ["celery", "-A", "app.worker", "worker", "-l", "info"]
+    # Обычный воркер слушает только очередь celery; очистка журнала уходит в maintenance.
+    command: ["celery", "-A", "app.worker", "worker", "-l", "info", "-Q", "celery"]
 
-  beat:
+  # Очистка старых строк item_events и llm_calls (cleanup_retention). Единственный сервис с
+  # CLEANUP_DATABASE_URL: ролью leaderhelp_cleanup, у которой есть DELETE на журнал.
+  worker-maintenance:
     <<: *backend
     environment:
       <<: *backend-env
-      RUN_MIGRATIONS: "0"
+      CLEANUP_DATABASE_URL: postgresql+psycopg://leaderhelp_cleanup:${CLEANUP_DB_PASSWORD:-leaderhelp_cleanup}@db:5432/${POSTGRES_DB:-leaderhelp}
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["celery", "-A", "app.worker", "worker", "-l", "info", "-Q", "maintenance", "-c", "1", "-n", "maintenance@%h"]
+
+  beat:
+    <<: *backend
     # Свой depends_on заменяет общий, поэтому Redis указан здесь явно.
     depends_on:
       backend:

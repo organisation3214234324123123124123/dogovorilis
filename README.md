@@ -48,6 +48,8 @@ Swagger UI доступен в браузере: http://localhost:8000/api/docs.
 docker compose -f compose.yaml up -d
 ```
 
+Миграции выполняет одноразовый сервис `migrate` под владельцем таблиц, `backend` стартует после его успешного завершения. Приложение ходит в базу под ролью `leaderhelp_app`, очистку журнала выполняет `worker-maintenance` под ролью `leaderhelp_cleanup`. В боевом режиме задайте `APP_DB_PASSWORD` и `CLEANUP_DB_PASSWORD` длиной не менее 16 символов. Порядок выкладки: [infra/deploy/README.md](infra/deploy/README.md).
+
 В боевом режиме демо-данные не загружаются, служебный вход `/auth/token` отключён, cookie сессии передаётся только по HTTPS. Сервис не запустится, если `SECRET_KEY` короче 32 символов или задан `ADMIN_TOKEN` короче 32 символов.
 
 ## Структура репозитория

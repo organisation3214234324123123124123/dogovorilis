@@ -11,6 +11,10 @@ modules_dir = Path(__file__).parent / "modules"
 celery_app.autodiscover_tasks(
     [f"app.modules.{path.parent.name}" for path in sorted(modules_dir.glob("*/tasks.py"))]
 )
+# Очистка журнала идёт в очередь maintenance: её слушает только worker-maintenance.
+celery_app.conf.task_routes = {
+    "app.modules.analytics.tasks.cleanup_retention": {"queue": "maintenance"},
+}
 celery_app.conf.task_always_eager = os.environ.get("CELERY_EAGER") == "1"
 celery_app.conf.beat_schedule = {
     "emit-overdue-events": {

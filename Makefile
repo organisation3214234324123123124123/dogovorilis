@@ -1,7 +1,13 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
 TO := bash $(CURDIR)/scripts/tmo.sh
-TEST_DATABASE_URL ?= postgresql+psycopg://leaderhelp:leaderhelp@localhost:5432/leaderhelp_test
+# Три подключения к тестовой базе: приложение (роль leaderhelp_app), миграции (владелец) и
+# служебная очистка журнала (роль leaderhelp_cleanup). Пароли ролей задаёт миграция 0012.
+APP_DB_PASSWORD ?= leaderhelp_app
+CLEANUP_DB_PASSWORD ?= leaderhelp_cleanup
+TEST_DATABASE_URL ?= postgresql+psycopg://leaderhelp_app:$(APP_DB_PASSWORD)@localhost:5432/leaderhelp_test
+TEST_MIGRATION_DATABASE_URL ?= postgresql+psycopg://leaderhelp:leaderhelp@localhost:5432/leaderhelp_test
+TEST_CLEANUP_DATABASE_URL ?= postgresql+psycopg://leaderhelp_cleanup:$(CLEANUP_DB_PASSWORD)@localhost:5432/leaderhelp_test
 COV_MIN ?= 90
 SET ?=
 DEMO_SET := $(if $(SET),--set $(SET),)
@@ -58,7 +64,11 @@ fmt:
 	cd backend && uv run ruff format . && uv run ruff check --fix .
 
 test:
-	cd backend && DATABASE_URL=$${DATABASE_URL:-$(TEST_DATABASE_URL)} CELERY_EAGER=1 $(TO) 900 \
+	cd backend && DATABASE_URL=$${DATABASE_URL:-$(TEST_DATABASE_URL)} \
+		MIGRATION_DATABASE_URL=$${MIGRATION_DATABASE_URL:-$(TEST_MIGRATION_DATABASE_URL)} \
+		CLEANUP_DATABASE_URL=$${CLEANUP_DATABASE_URL:-$(TEST_CLEANUP_DATABASE_URL)} \
+		APP_DB_PASSWORD=$(APP_DB_PASSWORD) CLEANUP_DB_PASSWORD=$(CLEANUP_DB_PASSWORD) \
+		CELERY_EAGER=1 $(TO) 900 \
 		uv run pytest --cov=app --cov-report=term --cov-fail-under=$(COV_MIN)
 
 openapi:
@@ -70,7 +80,7 @@ migrations-check:
 
 migration:
 	@test -n "$(m)" || { echo 'usage: make migration m="message"'; exit 1; }
-	cd backend && DEV_MODE=1 uv run alembic revision --autogenerate -m "$(m)"
+	cd backend && DEV_MODE=1 MIGRATION_DATABASE_URL=$${MIGRATION_DATABASE_URL:-$(TEST_MIGRATION_DATABASE_URL)} uv run alembic revision --autogenerate -m "$(m)"
 
 schema:
 	$(TO) 600 bash db/dump_schema.sh
@@ -83,7 +93,7 @@ check: lint test migrations-check
 	git diff --exit-code -- docs/api/openapi.yaml
 
 demo:
-	cd backend && DEV_MODE=1 $(TO) 120 uv run python -m app.demo load $(DEMO_SET)
+	cd backend && DEV_MODE=1 DATABASE_URL=$${DATABASE_URL:-$(TEST_DATABASE_URL)} $(TO) 120 uv run python -m app.demo load $(DEMO_SET)
 
 demo-reset:
 	cd backend && DEV_MODE=1 $(TO) 120 uv run python -m app.demo reset $(DEMO_SET)

@@ -15,8 +15,9 @@ $DC exec -T db dropdb -U "$USER_" --if-exists "$TMP_DB"
 $DC exec -T db createdb -U "$USER_" "$TMP_DB"
 
 $DC run --rm --no-deps -T \
-  -e RUN_MIGRATIONS=0 \
-  -e DATABASE_URL="postgresql+psycopg://$USER_:$PASS_@db:5432/$TMP_DB" \
+  -e MIGRATION_DATABASE_URL="postgresql+psycopg://$USER_:$PASS_@db:5432/$TMP_DB" \
+  -e APP_DB_PASSWORD="${APP_DB_PASSWORD:-leaderhelp_app}" \
+  -e CLEANUP_DB_PASSWORD="${CLEANUP_DB_PASSWORD:-leaderhelp_cleanup}" \
   backend alembic upgrade head
 
 {

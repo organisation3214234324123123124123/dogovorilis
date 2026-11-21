@@ -166,7 +166,7 @@ JAR="$PJAR"
 req GET "$API/items/$ITEM_ID" ""
 expect "у ведущего статус пункта сменился" 200 '.status == "accepted"'
 
-# --- демо-пользователь (демо-данные загружает entrypoint, см. compose.override.yaml) ---
+# --- демо-пользователь (демо-данные загружает сервис migrate, см. compose.override.yaml) ---
 DEMO_JAR_BACKUP="$JAR"
 JAR="$TMP/demo-cookies.txt"
 req POST "$API/auth/login" '{"email":"host@example.com","password":"demo1234"}'
