@@ -55,10 +55,10 @@ def queue(sc: Scenario, kind: str, *, item=None, person=None, when=None, key=Non
 
 
 @pytest.mark.fr("FR-30")
-def test_confirm_request_payload_has_item_meeting_and_working_link(host, sc: Scenario) -> None:
+def test_summary_payload_has_item_meeting_and_working_link(host, sc: Scenario) -> None:
     send(host, sc.world)
-    (request,) = mails(sc.world.db, "CONFIRM_REQUEST", meeting=sc.world.meeting)
-    text = payload_text(request)
+    (summary,) = mails(sc.world.db, "SUMMARY", recipient_person_id=sc.ivan.id)
+    text = payload_text(summary)
     assert sc.pending.what in text
     (token,) = set(tokens_in(text))
     assert re.fullmatch(r"[A-Za-z0-9_-]{43}", token)
@@ -68,17 +68,18 @@ def test_confirm_request_payload_has_item_meeting_and_working_link(host, sc: Sce
 
 
 @pytest.mark.fr("FR-30")
-def test_confirm_request_has_three_buttons(host, sc: Scenario) -> None:
+def test_summary_of_pending_item_has_three_buttons_with_item_and_kind(host, sc: Scenario) -> None:
     send(host, sc.world)
-    (request,) = mails(sc.world.db, "CONFIRM_REQUEST", meeting=sc.world.meeting)
-    assert actions_in(payload_text(request)) == {"accept", "reschedule", "decline"}
+    (summary,) = mails(sc.world.db, "SUMMARY", recipient_person_id=sc.ivan.id)
+    text = payload_text(summary)
+    assert actions_in(text) == {"accept", "reschedule", "decline"}
+    assert f"item={sc.pending.id}&n=SUMMARY" in text
 
 
 @pytest.mark.fr("FR-30")
-def test_agreed_item_gets_no_confirm_request(host, sc: Scenario) -> None:
+def test_send_queues_no_confirm_request_at_all(host, sc: Scenario) -> None:
     send(host, sc.world)
-    assert mails(sc.world.db, "CONFIRM_REQUEST", item_id=sc.agreed.id) == []
-    assert len(mails(sc.world.db, "CONFIRM_REQUEST", meeting=sc.world.meeting)) == 1
+    assert mails(sc.world.db, "CONFIRM_REQUEST", meeting=sc.world.meeting) == []
 
 
 @pytest.mark.fr("FR-30")
@@ -134,11 +135,12 @@ def test_opening_email_links_changes_nothing(host, client, sc: Scenario) -> None
 
 
 @pytest.mark.fr("FR-35")
-def test_agreed_item_summary_has_link_without_accept_button(host, sc: Scenario) -> None:
+def test_agreed_item_summary_has_done_button_but_no_accept(host, sc: Scenario) -> None:
     send(host, sc.world)
     (summary,) = mails(sc.world.db, "SUMMARY", recipient_person_id=sc.anna.id)
     text = payload_text(summary)
-    assert actions_in(text) == {"reschedule", "decline"}
+    assert actions_in(text) == {"done", "reschedule", "decline"}
+    assert f"item={sc.agreed.id}&n=SUMMARY" in text
     assert tokens_in(text)
     assert mails(sc.world.db, "CONFIRM_REQUEST", recipient_person_id=sc.anna.id) == []
 
@@ -230,7 +232,7 @@ def test_only_one_repeat_is_ever_sent(host, sc: Scenario) -> None:
         send_due(sc.world.db, datetime(2030, 1, day, 12, 0, tzinfo=UTC))
     repeats = mails(sc.world.db, "CONFIRM_REPEAT", meeting=sc.world.meeting)
     assert [m.status for m in repeats] == [NotificationStatus.SENT]
-    assert len(mails(sc.world.db, "CONFIRM_REQUEST", meeting=sc.world.meeting)) == 1
+    assert mails(sc.world.db, "CONFIRM_REQUEST", meeting=sc.world.meeting) == []
 
 
 @pytest.mark.fr("FR-40")
@@ -492,9 +494,9 @@ def test_no_live_token_in_payload_or_database(host, sc: Scenario, mailbox) -> No
 @pytest.mark.fr("FR-32")
 def test_email_buttons_carry_the_item_id(host, sc: Scenario) -> None:
     send(host, sc.world)
-    (request,) = mails(sc.world.db, "CONFIRM_REQUEST", meeting=sc.world.meeting)
+    (summary,) = mails(sc.world.db, "SUMMARY", recipient_person_id=sc.ivan.id)
     assert re.search(
-        rf"/p/[A-Za-z0-9_-]{{43}}\?action=accept&item={sc.pending.id}", payload_text(request)
+        rf"/p/[A-Za-z0-9_-]{{43}}\?action=accept&item={sc.pending.id}", payload_text(summary)
     )
     (reminder,) = mails(sc.world.db, "DUE_TOMORROW", item_id=sc.pending.id)
     assert f"item={sc.pending.id}" in payload_text(reminder)

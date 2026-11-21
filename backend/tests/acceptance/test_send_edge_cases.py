@@ -47,8 +47,9 @@ def test_assignee_set_after_items_read_still_gets_link_and_letter(sc: Scenario) 
     row = db.execute(Item.__table__.select().where(Item.id == late.id)).one()
     assert row.status == ItemStatus.PENDING and row.assignee_person_id == sc.oleg.id
     assert link_for(db, sc.oleg, sc.world.meeting), "у исполнителя нет ссылки"
-    requests = mails(db, "CONFIRM_REQUEST", meeting=sc.world.meeting, item_id=late.id)
-    assert len(requests) == 1, "pending-пункт с исполнителем остался без письма"
+    assert mails(db, "CONFIRM_REQUEST", meeting=sc.world.meeting, item_id=late.id) == []
+    (summary,) = mails(db, "SUMMARY", meeting=sc.world.meeting, recipient_person_id=sc.oleg.id)
+    assert f"item={late.id}" in str(summary.payload), "pending-пункт остался без письма"
 
 
 def _row(sc: Scenario, kind: str, key: str, when) -> Notification:

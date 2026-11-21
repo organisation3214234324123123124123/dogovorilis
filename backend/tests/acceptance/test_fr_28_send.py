@@ -114,11 +114,9 @@ def test_send_queues_summary_for_every_participant_within_five_minutes(host, sc:
 
 
 @pytest.mark.fr("FR-28")
-def test_send_queues_confirm_request_and_repeat_for_pending_item(host, sc: Scenario) -> None:
+def test_send_queues_repeat_but_no_confirm_request_for_pending_item(host, sc: Scenario) -> None:
     send(host, sc.world)
-    (request,) = mails(sc.world.db, "CONFIRM_REQUEST", meeting=sc.world.meeting)
-    assert request.recipient_person_id == sc.ivan.id
-    assert re.fullmatch(rf"{sc.pending.id}:CONFIRM_REQUEST:{sc.ivan.id}:\d+", request.dedupe_key)
+    assert mails(sc.world.db, "CONFIRM_REQUEST", meeting=sc.world.meeting) == []
     (repeat,) = mails(sc.world.db, "CONFIRM_REPEAT", meeting=sc.world.meeting)
     assert repeat.dedupe_key == f"{sc.world.meeting.id}:CONFIRM_REPEAT:{sc.ivan.id}"
 
@@ -155,26 +153,24 @@ def test_send_writes_sent_item_events(host, sc: Scenario) -> None:
 
 @pytest.mark.fr("FR-28")
 @pytest.mark.fr("FR-30")
-def test_send_queues_both_summary_and_confirm_request_for_pending_assignee(
-    host, sc: Scenario
-) -> None:
+def test_send_queues_only_summary_for_pending_assignee(host, sc: Scenario) -> None:
     send(host, sc.world)
     (summary,) = mails(sc.world.db, "SUMMARY", recipient_person_id=sc.ivan.id)
-    (request,) = mails(sc.world.db, "CONFIRM_REQUEST", recipient_person_id=sc.ivan.id)
-    assert summary.status == request.status == NotificationStatus.QUEUED
-    assert summary.dedupe_key != request.dedupe_key
+    assert summary.status == NotificationStatus.QUEUED
+    assert mails(sc.world.db, "CONFIRM_REQUEST", recipient_person_id=sc.ivan.id) == []
+    assert summary.payload["confirm_needed"] is True
 
 
 @pytest.mark.fr("FR-28")
 @pytest.mark.fr("FR-30")
-def test_assignee_of_pending_item_receives_summary_and_confirm_request_letters(
+def test_assignee_of_pending_item_receives_single_summary_letter(
     host, sc: Scenario, mailbox
 ) -> None:
     send(host, sc.world)
     mailbox.run(TUESDAY + timedelta(minutes=5))
     subjects = [letter["subject"] for letter in mailbox.to(sc.ivan)]
-    assert any(s.startswith("Итоги встречи") for s in subjects)
-    assert any(s.startswith("Подтвердите договорённость") for s in subjects)
+    assert len(subjects) == 1
+    assert subjects[0].startswith("Итоги встречи")
 
 
 LATE_LINE = "Олег подготовит акт к пятнице"

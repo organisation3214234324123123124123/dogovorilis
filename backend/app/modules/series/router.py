@@ -228,8 +228,9 @@ def open_closure(meeting_id: uuid.UUID, db: SessionDep, user: CurrentUser) -> Me
     "/meetings/{meeting_id}/send",
     tags=["meetings"],
     summary="Разослать итог",
-    description="Переводит пункты из draft в pending/accepted, ставит в очередь письма SUMMARY и "
-    "CONFIRM_REQUEST, выдаёт исполнителям ссылки. Повторное нажатие писем не добавляет (BR-5). "
+    description="Переводит пункты из draft в pending/accepted, ставит в очередь итоговое письмо "
+    "SUMMARY (с кнопками по решениям получателя), выдаёт исполнителям ссылки. Повторное нажатие "
+    "писем не добавляет (BR-5). "
     "Повторная рассылка ничего не отправляет: пункты, добавленные после рассылки, сразу уходят "
     "исполнителю.",
     response_model=SendResult,

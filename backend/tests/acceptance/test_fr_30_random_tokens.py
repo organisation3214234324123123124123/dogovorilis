@@ -53,11 +53,12 @@ def test_every_token_is_32_bytes_base64url(host, sc: Scenario, mailbox: Mailbox)
         assert len(base64.urlsafe_b64decode(token + "=")) == 32
 
 
-def test_summary_and_confirm_request_to_one_person_carry_different_tokens(
+def test_summary_and_repeat_to_one_person_carry_different_tokens(
     host, sc: Scenario, mailbox: Mailbox
 ) -> None:
     send(host, sc.world)
     mailbox.run(TUESDAY)
+    mailbox.run(REPEAT_AT)
     letters = mailbox.to(sc.ivan)
     assert len(letters) == 2
     first, second = ({*mailbox.tokens(letter)} for letter in letters)
@@ -80,7 +81,7 @@ def test_repeat_letter_gets_a_token_not_seen_before(host, sc: Scenario, mailbox:
     before = set(tokens_to(mailbox, sc.ivan))
     mailbox.run(REPEAT_AT)
     after = tokens_to(mailbox, sc.ivan)
-    assert len(after) == 3
+    assert len(after) == 2
     (repeat_token,) = set(after) - before
     assert page(host, repeat_token) == 200
     assert {page(host, token) for token in before} == {200}

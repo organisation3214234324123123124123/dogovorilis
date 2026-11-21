@@ -538,20 +538,29 @@ def open_due_closures(db: Session, now: datetime) -> int:
 
 
 def _queue_summaries(db: Session, meeting: Meeting, all_sent: list[Item], now: datetime) -> int:
-    """SUMMARY встречи каждому участнику (FR-35)."""
+    """SUMMARY встречи каждому участнику и каждому исполнителю разосланных решений (FR-35):
+    итог - единственное письмо с кнопками по решениям получателя, исполнитель вне списка
+    участников тоже его получает.
+    """
     people = {i.assignee_person_id for i in all_sent if i.assignee_person_id}
     links = {p: confirm_service.ensure_link(db, p, meeting.id, now).id for p in people}
+    recipients = list(
+        dict.fromkeys(
+            [mp.person_id for mp, _, _ in repository.participants(db, meeting.id)]
+            + sorted(people, key=str)
+        )
+    )
     queued = 0
-    for mp, _, _ in repository.participants(db, meeting.id):
+    for person_id in recipients:
         queued += notifications_service.queue(
             db,
             NotificationType.SUMMARY,
             item_id=None,
             meeting_id=meeting.id,
-            person_id=mp.person_id,
-            dedupe_key=f"{meeting.id}:SUMMARY:{mp.person_id}",
+            person_id=person_id,
+            dedupe_key=f"{meeting.id}:SUMMARY:{person_id}",
             scheduled_for=now,
-            payload=content.summary(db, meeting.id, mp.person_id, links.get(mp.person_id)),
+            payload=content.summary(db, meeting.id, person_id, links.get(person_id)),
         )
     return queued
 
@@ -596,7 +605,10 @@ def send_summary(db: Session, user: User, meeting_id: uuid.UUID, body: SendReque
     now = datetime.now(UTC)
     meeting.status = MeetingStatus.SENT
     meeting.summary_sent_at = now
-    queued = sum(items_service.send_item(db, user, item, series, now) for item in drafts)
+    queued = sum(
+        items_service.send_item(db, user, item, series, now, announced_in_summary=True)
+        for item in drafts
+    )
     all_sent = [i for i in items if i.sent_at is not None and i.status != ItemStatus.CANCELLED]
     queued += _queue_summaries(db, meeting, all_sent, now)
     analytics_service.track(

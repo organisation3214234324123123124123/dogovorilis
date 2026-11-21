@@ -38,6 +38,11 @@ LEADS = {
 }
 
 
+CONFIRM_NEEDED_LEAD = (
+    "Подтвердите, пожалуйста, свои договорённости: примите их или предложите другой срок."
+)
+
+
 @dataclass
 class Rendered:
     subject: str
@@ -86,6 +91,8 @@ def _body(token_for: TokenFor, kind: NotificationType, payload: dict[str, Any]) 
         if lead
         else []
     )
+    if kind == NotificationType.SUMMARY and payload.get("confirm_needed"):
+        lines.append(CONFIRM_NEEDED_LEAD)
     if kind == NotificationType.HOST_RESPONSE:
         what = (
             f"предлагает новый срок {_date(payload.get('due_date'))}"

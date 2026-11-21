@@ -18,7 +18,7 @@ ACTION_LABELS = {
     "done": "Сделано",
 }
 CONFIRM_ACTIONS = ("accept", "reschedule", "decline")
-AGREED_ACTIONS = ("reschedule", "decline")
+AGREED_ACTIONS = ("done", "reschedule", "decline")
 REMINDER_ACTIONS = ("done", "reschedule")
 SUMMARY_ACTIONS = {ItemStatus.PENDING: CONFIRM_ACTIONS, ItemStatus.ACCEPTED: AGREED_ACTIONS}
 UNASSIGNED = "не назначен"
@@ -134,6 +134,7 @@ def summary(
     ]
     payload: dict[str, Any] = {**_head(meeting, series, host), "items": rows}
     if link_id and mine:
+        payload["confirm_needed"] = any(i.status == ItemStatus.PENDING for i in mine)
         payload["link_id"] = str(link_id)
         payload["buttons"] = [
             b

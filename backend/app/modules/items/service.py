@@ -475,7 +475,7 @@ def create_item(db: Session, user: User, meeting_id: uuid.UUID, body: ItemCreate
         db, "decision_captured", source="manual", fields_filled=filled, **_ids(user, item)
     )
     if meeting.status == MeetingStatus.SENT:
-        send_item(db, user, item, series, datetime.now(UTC))
+        send_item(db, user, item, series, datetime.now(UTC), announced_in_summary=False)
 
     read = _one(db, item, series.timezone)
     _track_overload(db, user, item, read)
@@ -911,9 +911,19 @@ def send_draft(db: Session, user: User, item: Item, now: datetime) -> None:
     _journal(db, user, item, ItemAction.SENT)
 
 
-def send_item(db: Session, user: User, item: Item, series: Series, now: datetime) -> int:
-    """Отправка одного черновика: статус, ссылка, CONFIRM_REQUEST, повтор и DUE_TOMORROW.
-    Нужна и рассылке встречи, и пункту, добавленному в уже разосланную встречу (FR-28, FR-30).
+def send_item(
+    db: Session,
+    user: User,
+    item: Item,
+    series: Series,
+    now: datetime,
+    *,
+    announced_in_summary: bool,
+) -> int:
+    """Отправка одного черновика: статус, ссылка, повтор и DUE_TOMORROW; CONFIRM_REQUEST - только
+    если решение не войдёт в итоговое письмо (announced_in_summary=False). Нужна и рассылке
+    встречи, и пункту, добавленному в уже разосланную встречу (FR-28, FR-30). Признак нельзя
+    вывести из статуса встречи: send_summary переводит её в sent раньше вызова.
     """
     send_draft(db, user, item, now)
     person = item.assignee_person_id
@@ -922,16 +932,17 @@ def send_item(db: Session, user: User, item: Item, series: Series, now: datetime
     link_id = confirm_service.ensure_link(db, person, item.meeting_id, now).id
     queued = 0
     if item.status == ItemStatus.PENDING:
-        queued += notifications_service.queue(
-            db,
-            NotificationType.CONFIRM_REQUEST,
-            item_id=item.id,
-            meeting_id=item.meeting_id,
-            person_id=person,
-            dedupe_key=f"{item.id}:CONFIRM_REQUEST:{person}:{item.version}",
-            scheduled_for=now,
-            payload=content.confirm_request(db, item, link_id),
-        )
+        if not announced_in_summary:
+            queued += notifications_service.queue(
+                db,
+                NotificationType.CONFIRM_REQUEST,
+                item_id=item.id,
+                meeting_id=item.meeting_id,
+                person_id=person,
+                dedupe_key=f"{item.id}:CONFIRM_REQUEST:{person}:{item.version}",
+                scheduled_for=now,
+                payload=content.confirm_request(db, item, link_id),
+            )
         queued += notifications_service.queue(
             db,
             NotificationType.CONFIRM_REPEAT,
