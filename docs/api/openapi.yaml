@@ -1573,11 +1573,6 @@ components:
       type: object
     PromptCreate:
       properties:
-        activate:
-          default: true
-          description: Сделать активной сразу (флаг is_active - OQ)
-          title: Activate
-          type: boolean
         task:
           $ref: '#/components/schemas/LlmTask'
         text:
@@ -1597,6 +1592,12 @@ components:
           format: date-time
           title: Created At
           type: string
+        created_by:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Created By
         id:
           format: uuid
           title: Id
@@ -2391,11 +2392,20 @@ paths:
       summary: Выгрузка событий в CSV
       tags:
       - admin
-  /api/v1/admin/llm/prompts:
+  /api/v1/admin/prompts:
     get:
       description: 'Контракт LLM: все версии по задачам, сначала новые. Служебный
         доступ: заголовок `X-Admin-Token`.'
-      operationId: list_prompts_api_v1_admin_llm_prompts_get
+      operationId: list_prompts_api_v1_admin_prompts_get
+      parameters:
+      - in: query
+        name: task
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/LlmTask'
+          - type: 'null'
+          title: Task
       responses:
         '200':
           content:
@@ -2403,7 +2413,7 @@ paths:
               schema:
                 items:
                   $ref: '#/components/schemas/PromptRead'
-                title: Response List Prompts Api V1 Admin Llm Prompts Get
+                title: Response List Prompts Api V1 Admin Prompts Get
                 type: array
           description: Successful Response
         '401':
@@ -2419,9 +2429,8 @@ paths:
       tags:
       - admin
     post:
-      description: Только новая строка в llm_prompts, старые не меняются. При `activate=true`
-        новая версия становится единственной активной для задачи.
-      operationId: create_prompt_api_v1_admin_llm_prompts_post
+      description: Создаёт неактивную версию. Активная версия не меняется.
+      operationId: create_prompt_api_v1_admin_prompts_post
       requestBody:
         content:
           application/json:
@@ -2450,6 +2459,51 @@ paths:
       security:
       - AdminToken: []
       summary: Новая версия промпта
+      tags:
+      - admin
+  /api/v1/admin/prompts/{prompt_id}/activate:
+    post:
+      description: Делает версию единственной активной для её задачи; повторный вызов безопасен.
+      operationId: activate_prompt_api_v1_admin_prompts__prompt_id__activate_post
+      parameters:
+      - in: path
+        name: prompt_id
+        required: true
+        schema:
+          format: uuid
+          title: Prompt Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptRead'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Нет или неверный X-Admin-Token, либо ADMIN_TOKEN не задан
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Версия промпта не найдена
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json: {}
+          description: Некорректный идентификатор версии промпта
+      security:
+      - AdminToken: []
+      summary: Включить версию промпта
       tags:
       - admin
   /api/v1/admin/persons/{person_id}/anonymize:

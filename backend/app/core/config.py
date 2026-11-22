@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_base_url: str = "https://llm.api.cloud.yandex.net/v1"
     llm_model: str = ""
+    llm_dpa_confirmed: bool = False
 
     smtp_host: str = ""
     smtp_port: int = 587
@@ -39,6 +40,13 @@ class Settings(BaseSettings):
     @field_validator("dev_mode", mode="before")
     @classmethod
     def empty_dev_mode_is_off(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return False
+        return value
+
+    @field_validator("llm_dpa_confirmed", mode="before")
+    @classmethod
+    def empty_llm_dpa_confirmation_is_off(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return False
         return value

@@ -15,9 +15,9 @@ class PromptRead(BaseModel):
     text: str = Field(description="Текст промпта")
     is_active: bool
     created_at: datetime
+    created_by: uuid.UUID | None = None
 
 
 class PromptCreate(BaseModel):
     task: LlmTask
     text: str = Field(min_length=1, max_length=20000, description="Текст новой версии")
-    activate: bool = Field(True, description="Сделать активной сразу (флаг is_active - OQ)")

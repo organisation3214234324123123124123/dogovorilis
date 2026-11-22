@@ -8,8 +8,24 @@ from app.modules.llm.models import LlmCall, LlmPrompt, LlmTask
 from app.modules.series.models import Meeting, Series
 
 
-def list_prompts(db: Session) -> list[LlmPrompt]:
-    return list(db.scalars(select(LlmPrompt).order_by(LlmPrompt.task, LlmPrompt.version.desc())))
+def list_prompts(db: Session, task: LlmTask | None = None) -> list[LlmPrompt]:
+    stmt = select(LlmPrompt)
+    if task is not None:
+        stmt = stmt.where(LlmPrompt.task == task)
+    return list(db.scalars(stmt.order_by(LlmPrompt.task, LlmPrompt.version.desc())))
+
+
+def get_prompt(db: Session, prompt_id: uuid.UUID) -> LlmPrompt | None:
+    return db.get(LlmPrompt, prompt_id)
+
+
+def activate_prompt(db: Session, prompt: LlmPrompt) -> LlmPrompt:
+    db.execute(
+        update(LlmPrompt).where(LlmPrompt.task == prompt.task).values(is_active=False)
+    )
+    prompt.is_active = True
+    db.flush()
+    return prompt
 
 
 def get_active_prompt(db: Session, task: LlmTask) -> LlmPrompt | None:

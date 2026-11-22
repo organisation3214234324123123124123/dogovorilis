@@ -64,6 +64,17 @@ def get_locked(db: Session, item_id: uuid.UUID) -> tuple[Item, Series] | None:
     return (row[0], row[1]) if row else None
 
 
+def get_for_enrichment(db: Session, item_id: uuid.UUID) -> tuple[Item, Series, Meeting] | None:
+    stmt = (
+        select(Item, Series, Meeting)
+        .join(Series, Series.id == Item.series_id)
+        .join(Meeting, Meeting.id == Item.meeting_id)
+        .where(Item.id == item_id)
+    )
+    row = db.execute(stmt).one_or_none()
+    return (row[0], row[1], row[2]) if row else None
+
+
 def pending_count(db: Session, meeting_id: uuid.UUID, person_id: uuid.UUID) -> int:
     stmt = select(func.count()).where(
         Item.meeting_id == meeting_id,

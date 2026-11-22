@@ -114,6 +114,9 @@ class Item(Base):
     cancelled_at: Mapped[datetime | None]
     reschedule_count: Mapped[int] = mapped_column(default=0, server_default="0")
     version: Mapped[int] = mapped_column(default=1, server_default="1")
+    llm_enrichment_done: Mapped[bool] = mapped_column(
+        default=False, server_default="false", nullable=False
+    )
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 

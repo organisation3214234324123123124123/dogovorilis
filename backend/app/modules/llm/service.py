@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.errors import NotFound
 from app.models import Item, Person
 from app.modules.llm import repository
 from app.modules.llm.client import LLMClient, LLMError, LLMRateLimited, LLMResponse, LLMTimeout
@@ -104,8 +105,8 @@ class ParseResult:
     question: str | None = None
 
 
-def list_prompts(db: Session) -> list[LlmPrompt]:
-    return repository.list_prompts(db)
+def list_prompts(db: Session, task: LlmTask | None = None) -> list[LlmPrompt]:
+    return repository.list_prompts(db, task)
 
 
 def get_active_prompt(db: Session, task: LlmTask) -> LlmPrompt | None:
@@ -114,15 +115,24 @@ def get_active_prompt(db: Session, task: LlmTask) -> LlmPrompt | None:
 
 def create_prompt(db: Session, body: PromptCreate) -> LlmPrompt:
     repository.lock_task(db, body.task)
-    if body.activate:
-        repository.deactivate_prompts(db, body.task)
     prompt = LlmPrompt(
         task=body.task,
         version=repository.next_version(db, body.task),
         text=body.text,
-        is_active=body.activate,
+        is_active=False,
     )
     return repository.add_prompt(db, prompt)
+
+
+def activate_prompt(db: Session, prompt_id: uuid.UUID) -> LlmPrompt:
+    prompt = repository.get_prompt(db, prompt_id)
+    if prompt is None:
+        raise NotFound("Версия промпта не найдена")
+    repository.lock_task(db, prompt.task)
+    db.refresh(prompt)
+    if not prompt.is_active:
+        repository.activate_prompt(db, prompt)
+    return prompt
 
 
 def _first_name(person: Person) -> str:
@@ -271,14 +281,10 @@ def parse_text(
     return ParseResult(outcome, **fields)
 
 
-def enrich_item(
-    db: Session, client: LLMClient, item: Item, *, today: date, persons: list[Person]
-) -> ParseResult:
-    result = parse_text(
-        db, client, meeting_id=item.meeting_id, text=item.raw_text, today=today, persons=persons
-    )
+def fields_to_fill(item: Item, result: ParseResult) -> dict[str, Any]:
+    """Поле, которое ведущий очистил вручную, тоже оставляем пустым"""
     if result.outcome != LlmOutcome.OK:
-        return result
+        return {}
     manual = set(item.manual_fields or [])
     candidates = {
         "what": result.what,
@@ -287,11 +293,11 @@ def enrich_item(
         "due_text": result.due_text,
         "done_criteria": result.done_criteria,
     }
-    for field, value in candidates.items():
-        if value is not None and field not in manual and getattr(item, field) in (None, ""):
-            setattr(item, field, value)
-    db.flush()
-    return result
+    return {
+        field: value
+        for field, value in candidates.items()
+        if value is not None and field not in manual and getattr(item, field) in (None, "")
+    }
 
 
 def match_agenda(

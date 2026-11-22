@@ -1,12 +1,15 @@
+import logging
 import math
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy.orm import Session
+from sqlalchemy import event
+from sqlalchemy.orm import Session, SessionTransaction
 
 from app.core.business_days import add_business_days
+from app.core.db import SessionLocal, get_engine
 from app.core.errors import (
     Conflict,
     Forbidden,
@@ -51,12 +54,16 @@ from app.modules.items.schemas import (
     ReassignAction,
     RescheduleAction,
 )
+from app.modules.llm import service as llm_service
+from app.modules.llm.client import StubLLMClient, get_llm_client
+from app.modules.llm.models import LlmOutcome
 from app.modules.live import service as live_service
 from app.modules.notifications import content
 from app.modules.notifications import service as notifications_service
 from app.modules.notifications.models import NotificationType
 from app.modules.notifications.service import CHANGED_FIELDS
 from app.modules.series import service as series_service
+from app.modules.series import repository as series_repository
 from app.modules.series.models import (
     LOAD_WARNING_THRESHOLD_DEFAULT,
     Meeting,
@@ -66,6 +73,8 @@ from app.modules.series.models import (
     SeriesStatus,
 )
 
+logger = logging.getLogger(__name__)
+
 ON_TIME_WINDOW_DAYS = 30
 OVERLOAD_WINDOW_DAYS = 7
 CAPTURE_LIMIT = 60
@@ -73,9 +82,7 @@ CAPTURE_WINDOW_SEC = 60
 EDITABLE_FIELDS = ("what", "assignee_person_id", "due_date", "due_text", "done_criteria")
 PARSED_FIELDS = ("what", "assignee_person_id", "due_date", "due_text")
 
-# Точка расширения для LLM (FR-12): вызывается после разбора правилами, до пересчёта пробелов.
-# Обогатитель заполняет только пустые поля и не трогает item.manual_fields (BR-15).
-ENRICHERS: list[Callable[[Session, Item], None]] = []
+ITEM_ENRICHMENT_OUTBOX = "item_enrichment"
 STALE_PENDING_BUSINESS_DAYS = 2
 OVERDUE_JOB_FROM_MINUTE = 5
 OVERDUE_JOB_TO_MINUTE = 60
@@ -465,8 +472,6 @@ def create_item(db: Session, user: User, meeting_id: uuid.UUID, body: ItemCreate
     filled = [f for f in PARSED_FIELDS if getattr(parsed, f) is not None]
     for field in filled:
         setattr(item, field, getattr(parsed, field))
-    for enrich in ENRICHERS:
-        enrich(db, item)
     db.flush()
     gaps_service.recalc(db, item, today, _assignee_name(db, item), parsed.namesakes)
     analytics_service.track(
@@ -474,12 +479,135 @@ def create_item(db: Session, user: User, meeting_id: uuid.UUID, body: ItemCreate
     )
     if meeting.status == MeetingStatus.SENT:
         send_item(db, user, item, series, datetime.now(UTC))
+    elif item.status == ItemStatus.DRAFT:
+        _schedule_item_enrichment(db, item.id)
 
     read = _one(db, item, series.timezone)
     _track_overload(db, user, item, read)
     _emit(db, meeting.id, "item.updated", item, read.model_dump(mode="json"))
     _emit(db, meeting.id, "gaps.updated", item, _gaps_data(item, read))
     return read
+
+
+def _schedule_item_enrichment(db: Session, item_id: uuid.UUID) -> None:
+    db.info.setdefault(ITEM_ENRICHMENT_OUTBOX, set()).add(item_id)
+
+
+@event.listens_for(Session, "after_commit")
+def _start_item_enrichment(session: Session) -> None:
+    for item_id in session.info.pop(ITEM_ENRICHMENT_OUTBOX, set()):
+        try:
+            from app.modules.items import tasks
+
+            tasks.enrich_item.delay(str(item_id))
+        except Exception:
+            logger.warning("Не удалось поставить разбор пункта в очередь")
+
+
+@event.listens_for(Session, "after_soft_rollback")
+def _drop_item_enrichment(session: Session, previous_transaction: SessionTransaction) -> None:
+    if not previous_transaction.nested:
+        session.info.pop(ITEM_ENRICHMENT_OUTBOX, None)
+
+
+def enrich_item_background(item_id: uuid.UUID) -> bool:
+    """Разбираем текст без блокировки, чтобы ведущий мог править пункт"""
+    client = get_llm_client()
+    if isinstance(client, StubLLMClient):
+        return False
+
+    with SessionLocal(bind=get_engine()) as db:
+        found = repository.get_for_enrichment(db, item_id)
+        if found is None:
+            return False
+        item, series, meeting = found
+        if (
+            item.status != ItemStatus.DRAFT
+            or meeting.status == MeetingStatus.SENT
+            or series.status == SeriesStatus.ARCHIVED
+            or item.llm_enrichment_done
+        ):
+            return False
+        parsed = llm_service.parse_text(
+            db,
+            client,
+            meeting_id=meeting.id,
+            text=item.raw_text,
+            today=today_in(series.timezone),
+            persons=series_service.member_persons(db, series.id),
+        )
+        db.commit()
+
+    if parsed.outcome != LlmOutcome.OK:
+        return False
+
+    with SessionLocal(bind=get_engine()) as db:
+        applied = apply_llm_result(db, item_id, parsed)
+        db.commit()
+        return applied
+
+
+def apply_llm_result(db: Session, item_id: uuid.UUID, parsed: llm_service.ParseResult) -> bool:
+    if parsed.outcome != LlmOutcome.OK:
+        return False
+    locked = repository.get_locked(db, item_id)
+    if locked is None:
+        return False
+    item, series = locked
+    meeting = db.get(Meeting, item.meeting_id)
+    if (
+        item.llm_enrichment_done
+        or item.status != ItemStatus.DRAFT
+        or meeting is None
+        or meeting.status == MeetingStatus.SENT
+        or series.status == SeriesStatus.ARCHIVED
+    ):
+        return False
+
+    fields = llm_service.fields_to_fill(item, parsed)
+    if item.accepted_in_meeting:
+        for field in (
+            "what",
+            "assignee_person_id",
+            "due_date",
+            "due_text",
+            "done_criteria",
+        ):
+            fields.pop(field, None)
+    if "assignee_person_id" in fields and not series_repository.is_member_locked(
+        db, series.id, fields["assignee_person_id"]
+    ):
+        fields.pop("assignee_person_id")
+
+    if fields:
+        for field, value in fields.items():
+            setattr(item, field, value)
+        item.version += 1
+        db.flush()
+        repository.add_event(
+            db,
+            ItemEvent(
+                item_id=item.id,
+                actor_type=ActorType.SYSTEM,
+                action=ItemAction.UPDATED,
+                data={
+                    "version": item.version,
+                    "status": item.status.value,
+                    "fields": list(fields),
+                    "by": "llm",
+                },
+            ),
+        )
+        gaps_changed = gaps_service.recalc(
+            db, item, today_in(series.timezone), _assignee_name(db, item)
+        )
+        read = _one(db, item, series.timezone)
+        _emit(db, meeting.id, "item.updated", item, read.model_dump(mode="json"))
+        if gaps_changed:
+            _emit(db, meeting.id, "gaps.updated", item, _gaps_data(item, read))
+
+    item.llm_enrichment_done = True
+    return True
 
 
 def _check_version(item: Item, if_match: str | None) -> None:

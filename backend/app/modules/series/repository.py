@@ -167,6 +167,15 @@ def is_member(db: Session, series_id: uuid.UUID, person_id: uuid.UUID) -> bool:
     return db.get(SeriesMember, (series_id, person_id)) is not None
 
 
+def is_member_locked(db: Session, series_id: uuid.UUID, person_id: uuid.UUID) -> bool:
+    stmt = (
+        select(SeriesMember)
+        .where(SeriesMember.series_id == series_id, SeriesMember.person_id == person_id)
+        .with_for_update(read=True, key_share=True)
+    )
+    return db.scalar(stmt) is not None
+
+
 def is_present(db: Session, meeting_id: uuid.UUID, person_id: uuid.UUID) -> bool:
     row = db.get(MeetingParticipant, (meeting_id, person_id))
     return row is not None and row.present

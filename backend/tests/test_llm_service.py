@@ -186,7 +186,10 @@ def test_provider_error_falls_back_without_exception(world, persons) -> None:
 def enrich(world, persons, client, item):
     from app.modules.llm import service
 
-    return service.enrich_item(world.db, client, item, today=TODAY, persons=persons)
+    result = run(world, persons, client, item.raw_text)
+    for field, value in service.fields_to_fill(item, result).items():
+        setattr(item, field, value)
+    return result
 
 
 def test_enrich_fills_empty_fields(world, persons) -> None:

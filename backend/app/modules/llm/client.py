@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -88,6 +89,7 @@ class OpenAICompatClient:
             raise LLMError(type(exc).__name__) from exc
 
     def complete(self, system_prompt: str, payload: dict, *, timeout: float) -> LLMResponse:
+        deadline = time.monotonic() + timeout
         body = {
             "model": self.model,
             "temperature": 0,
@@ -100,11 +102,14 @@ class OpenAICompatClient:
                 "json_schema": {"name": "item_parse", "strict": True, "schema": RESULT_SCHEMA},
             },
         }
-        resp = self._post(body, timeout)
+        resp = self._post(body, max(0, deadline - time.monotonic()))
         if resp.status_code != 429 and 400 <= resp.status_code < 500:
             # провайдер не принял response_format: повтор без него, результат всё равно проверяется
             body.pop("response_format")
-            resp = self._post(body, timeout)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise LLMTimeout("timeout")
+            resp = self._post(body, remaining)
         if resp.status_code == 429:
             raise LLMRateLimited("http 429")
         if resp.status_code >= 400:
@@ -139,15 +144,21 @@ class StubLLMClient:
 
 
 def llm_configured() -> bool:
-    """Реальный клиент нужен, только если заданы и ключ, и модель."""
+    """На стенде достаточно ключа и модели, а в боевой среде нужен ещё и договор"""
     settings = get_settings()
-    return bool(settings.llm_api_key) and bool(settings.llm_model.strip())
+    return (
+        bool(settings.llm_api_key)
+        and bool(settings.llm_model.strip())
+        and (settings.is_dev or settings.llm_dpa_confirmed)
+    )
 
 
 def get_llm_client() -> LLMClient:
     settings = get_settings()
     if not llm_configured():
-        if settings.llm_api_key:
+        if settings.llm_api_key and not settings.llm_model.strip():
             logger.warning("LLM_API_KEY задан, но LLM_MODEL пуст: используется заглушка")
+        elif settings.llm_api_key:
+            logger.warning("Договор с провайдером не подтверждён: используется заглушка")
         return StubLLMClient()
     return OpenAICompatClient(settings.llm_base_url, settings.llm_api_key, settings.llm_model)
